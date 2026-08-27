@@ -1,0 +1,13 @@
+Payment Date,payment_date
+Month,month
+Invoice,invoice
+Class Name,grade_id
+New Product Type,product_id
+Agent Name,agent_id
+Product Cluster,branch_destination_id
+Cluster,branch_id
+Payment Category,is_newtxn
+Payment Option,is_fullpayment
+Academic Year,academic_year
+school_npsn,npsn
+Revenue,revenue

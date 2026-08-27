@@ -1,0 +1,121 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+  --background: #f8fafc;
+  --foreground: #0f172a;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --background: #0f172a;
+  --foreground: #e2e8f0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+html[data-theme="dark"] body .bg-slate-50 {
+  background-color: #0f172a;
+}
+
+html[data-theme="dark"] body .bg-white {
+  background-color: #1e293b;
+}
+
+html[data-theme="dark"] body .bg-slate-100 {
+  background-color: #334155;
+}
+
+html[data-theme="dark"] body .border-slate-200,
+html[data-theme="dark"] body .border-slate-300,
+html[data-theme="dark"] body .border-slate-100 {
+  border-color: #475569;
+}
+
+html[data-theme="dark"] body .divide-slate-100 > :not(:last-child) {
+  border-color: #334155;
+}
+
+html[data-theme="dark"] body .text-slate-950 {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] body .text-slate-800,
+html[data-theme="dark"] body .text-slate-700 {
+  color: #e2e8f0;
+}
+
+html[data-theme="dark"] body .text-slate-600,
+html[data-theme="dark"] body .text-slate-500 {
+  color: #94a3b8;
+}
+
+html[data-theme="dark"] body .text-slate-400 {
+  color: #64748b;
+}
+
+html[data-theme="dark"] body .hover\:bg-slate-50:hover,
+html[data-theme="dark"] body .hover\:bg-slate-100:hover {
+  background-color: #334155;
+}
+
+html[data-theme="dark"] body input,
+html[data-theme="dark"] body select {
+  background-color: #1e293b;
+  color: #e2e8f0;
+  border-color: #475569;
+}
+
+html[data-theme="dark"] body table thead {
+  background-color: #334155;
+}
+
+html[data-theme="dark"] body .bg-teal-50 {
+  background-color: #134e4a;
+}
+
+html[data-theme="dark"] body .text-teal-700,
+html[data-theme="dark"] body .text-teal-800 {
+  color: #5eead4;
+}
+
+html[data-theme="dark"] body .bg-emerald-50 {
+  background-color: #064e3b;
+}
+
+html[data-theme="dark"] body .bg-rose-50 {
+  background-color: #4c0519;
+}
+
+html[data-theme="dark"] body .bg-amber-50 {
+  background-color: #451a03;
+}
+
+html[data-theme="dark"] body .text-emerald-900,
+html[data-theme="dark"] body .text-rose-800,
+html[data-theme="dark"] body .text-amber-900 {
+  color: #f1f5f9;
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+}
+
+.student-school-row:hover > .student-school-cell {
+  background-color: #f8fafc;
+}
+
+html[data-theme="dark"] body .student-school-row:hover > .student-school-cell {
+  background-color: #334155;
+}
