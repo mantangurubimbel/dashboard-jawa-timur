@@ -2,6 +2,9 @@ import { Settings2 } from "lucide-react";
 import { ImportRevenueTargetButton } from "@/components/import-revenue-target-button";
 import { UploadRawDataButton } from "@/components/upload-raw-data-button";
 import { supabaseRestFetch } from "@/lib/supabase-server";
+import { requireAdmin } from "@/lib/admin-auth";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
+import { AdminUserTable } from "@/components/admin-user-table";
 
 export const dynamic = "force-dynamic";
 
@@ -13,11 +16,17 @@ async function fetchCount(table: string) {
 }
 
 export default async function SettingsPage() {
-  const [users, branches, roles] = await Promise.all([
+  await requireAdmin();
+  const [users, branches, roles, userRows] = await Promise.all([
     fetchCount("t_app_user"),
     fetchCount("t_branch"),
     fetchCount("t_role"),
+    supabaseRestFetch("t_app_user?select=id,name,access_revenue_dashboard&order=name&limit=1000"),
   ]);
+  const profiles = userRows.ok ? await userRows.json() as { id: string; name?: string; access_revenue_dashboard?: boolean }[] : [];
+  const authUsers = await createSupabaseServiceRoleClient().auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const emailById = new Map((authUsers.data.users ?? []).map((user) => [user.id, user.email ?? ""]));
+  const adminUsers = profiles.map((profile) => ({ id: profile.id, name: profile.name ?? "", email: emailById.get(profile.id) ?? "", accessRevenue: Boolean(profile.access_revenue_dashboard) }));
 
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -63,6 +72,7 @@ export default async function SettingsPage() {
           </div>
         </div>
       </section>
+      <AdminUserTable users={adminUsers} />
     </div>
   );
 }
