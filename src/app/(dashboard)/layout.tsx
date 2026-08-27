@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/app-shell";
 import { createSupabaseAuthServerClient } from "@/lib/supabase-auth";
+import { redirect } from "next/navigation";
 
 export default async function DashboardLayout({
   children,
@@ -8,6 +9,9 @@ export default async function DashboardLayout({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
   const { data: profile } = user
     ? await supabase
         .from("t_app_user")
