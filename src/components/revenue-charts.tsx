@@ -17,20 +17,27 @@ import {
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
 import { BranchRevenuePerformancePoint, MonthlyPoint, RevenueSourcePoint, SummaryPoint } from "@/lib/types";
 
-const palette = ["#0f766e", "#2563eb", "#c2410c", "#7c3aed", "#0f172a", "#be123c"];
+const palette = [
+  "var(--chart-primary)",
+  "var(--chart-secondary)",
+  "var(--chart-tertiary)",
+  "var(--chart-quaternary)",
+  "var(--chart-fifth)",
+  "var(--chart-sixth)",
+];
 const regionalPalette = [
-  { retail: "#0f766e", bulk: "#115e59" },
-  { retail: "#2563eb", bulk: "#1e40af" },
-  { retail: "#c2410c", bulk: "#9a3412" },
-  { retail: "#7c3aed", bulk: "#5b21b6" },
-  { retail: "#0f172a", bulk: "#020617" },
-  { retail: "#be123c", bulk: "#9f1239" },
+  { retail: "var(--chart-regional-1-retail)", bulk: "var(--chart-regional-1-bulk)" },
+  { retail: "var(--chart-regional-2-retail)", bulk: "var(--chart-regional-2-bulk)" },
+  { retail: "var(--chart-regional-3-retail)", bulk: "var(--chart-regional-3-bulk)" },
+  { retail: "var(--chart-regional-4-retail)", bulk: "var(--chart-regional-4-bulk)" },
+  { retail: "var(--chart-regional-5-retail)", bulk: "var(--chart-regional-5-bulk)" },
+  { retail: "var(--chart-regional-6-retail)", bulk: "var(--chart-regional-6-bulk)" },
 ];
 
 function AxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
   return (
     <g transform={`translate(${x},${y})`}>
-      <text x={0} y={0} dy={14} textAnchor="middle" fill="#64748b" fontSize={11}>
+      <text x={0} y={0} dy={14} textAnchor="middle" fill="var(--chart-axis-muted)" fontSize={11}>
         {payload?.value}
       </text>
     </g>
@@ -63,7 +70,7 @@ function RegionalAxisTick({
 
   return (
     <g transform={`translate(${x},${y})`}>
-      <text textAnchor="middle" fill="#334155" fontSize={10}>
+      <text textAnchor="middle" fill="var(--chart-axis)" fontSize={10}>
         {lines.map((line, index) => (
           <tspan key={`${line}-${index}`} x={0} dy={index === 0 ? 12 : 13}>
             {line}
@@ -100,14 +107,14 @@ function BranchPerformanceBar({
         y={baseline - targetHeight}
         width={width}
         height={targetHeight}
-        fill="#cbd5e1"
+        fill="var(--chart-target)"
       />
       <rect
         x={x}
         y={baseline - revenueHeight}
         width={width}
         height={revenueHeight}
-        fill="#2563eb"
+        fill="var(--chart-secondary)"
       />
     </g>
   );
@@ -191,17 +198,17 @@ export function MonthlyRevenueChart({ data }: { data: MonthlyPoint[] }) {
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis dataKey="period" interval={2} tick={<AxisTick />} tickLine={false} axisLine={false} />
             <YAxis hide />
             <Tooltip content={<ChartTooltip />} />
             <Line
               type="monotone"
               dataKey="revenue"
-              stroke="#0f766e"
+              stroke="var(--chart-primary)"
               strokeWidth={3}
               dot={false}
-              activeDot={{ r: 5, fill: "#0f766e" }}
+              activeDot={{ r: 5, fill: "var(--chart-primary)" }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -242,7 +249,7 @@ export function RankingBarChart({
               strokeDasharray="3 3"
               horizontal={!isVertical}
               vertical={isVertical}
-              stroke="#e2e8f0"
+              stroke="var(--chart-grid)"
             />
             {isVertical ? (
               <>
@@ -255,14 +262,14 @@ export function RankingBarChart({
                   height={60}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#334155", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
                 />
                 <YAxis
                   type="number"
                   tickFormatter={(value) => `${Number(value) / 1_000_000_000}M`}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#64748b", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
                 />
               </>
             ) : (
@@ -272,7 +279,7 @@ export function RankingBarChart({
                   tickFormatter={(value) => `${Number(value) / 1_000_000_000}M`}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#64748b", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
                 />
                 <YAxis
                   dataKey="name"
@@ -280,7 +287,7 @@ export function RankingBarChart({
                   width={150}
                   tickLine={false}
                   axisLine={false}
-                  tick={{ fill: "#334155", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
                 />
               </>
             )}
@@ -395,7 +402,7 @@ export function RegionalRevenueSourceChart({ data }: { data: RevenueSourcePoint[
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data} margin={{ left: 8, right: 18, bottom: 30 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="name"
               interval={0}
@@ -451,23 +458,23 @@ export function BranchRevenuePerformanceChart({
             data={overlayData}
             margin={{ left: 8, right: 18, bottom: 45 }}
           >
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="name"
               interval={0}
               angle={-35}
               textAnchor="end"
               height={72}
-              tick={{ fill: "#334155", fontSize: 10 }}
+              tick={{ fill: "var(--chart-axis)", fontSize: 10 }}
             />
             <YAxis
               tickFormatter={(value) => `${Number(value) / 1_000_000_000}M`}
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
             />
             <Tooltip
-              cursor={{ fill: "#e2e8f0", fillOpacity: 0.55 }}
+              cursor={{ fill: "var(--chart-cursor)", fillOpacity: 0.55 }}
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null;
                 const point = payload[0].payload as BranchRevenuePerformancePoint;
@@ -500,7 +507,7 @@ export function BranchRevenuePerformanceChart({
             <Bar
               dataKey="maxValue"
               name="Revenue vs Target"
-              fill="#94a3b8"
+              fill="var(--chart-target)"
               barSize={22}
               shape={<BranchPerformanceBar />}
             />

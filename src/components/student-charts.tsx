@@ -3,7 +3,14 @@
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatNumber } from "@/lib/format";
 
-const colors = ["#0f766e", "#2563eb", "#c2410c", "#7c3aed", "#be123c", "#0f172a"];
+const colors = [
+  "var(--chart-primary)",
+  "var(--chart-secondary)",
+  "var(--chart-tertiary)",
+  "var(--chart-quaternary)",
+  "var(--chart-sixth)",
+  "var(--chart-fifth)",
+];
 
 function TooltipBox({
   active,
@@ -87,7 +94,7 @@ export function StudentTrendChart({
       )
     : data;
 
-  return <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-base font-semibold text-slate-950">Student per Bulan</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className="mt-4 h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="period" tick={{ fill: "#64748b", fontSize: 11 }} /><YAxis tick={{ fill: "#64748b", fontSize: 11 }} /><Tooltip content={<TooltipBox />} />{showCumulative ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}<Line type="monotone" dataKey="students" name="Jumlah per Bulan" stroke="#0f766e" strokeWidth={3} dot={{ r: 3, fill: "#0f766e" }} activeDot={{ r: 5, fill: "#0f766e" }} />{showCumulative ? <Line type="monotone" dataKey="cumulativeStudents" name="Kumulatif" stroke="#2563eb" strokeWidth={2.5} dot={{ r: 3, fill: "#2563eb" }} activeDot={{ r: 5, fill: "#2563eb" }} /> : null}</LineChart></ResponsiveContainer></div></section>;
+  return <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-base font-semibold text-slate-950">Student per Bulan</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className="mt-4 h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" /><XAxis dataKey="period" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} /><YAxis tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} /><Tooltip content={<TooltipBox />} />{showCumulative ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}<Line type="monotone" dataKey="students" name="Jumlah per Bulan" stroke="var(--chart-primary)" strokeWidth={3} dot={{ r: 3, fill: "var(--chart-primary)" }} activeDot={{ r: 5, fill: "var(--chart-primary)" }} />{showCumulative ? <Line type="monotone" dataKey="cumulativeStudents" name="Kumulatif" stroke="var(--chart-secondary)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--chart-secondary)" }} activeDot={{ r: 5, fill: "var(--chart-secondary)" }} /> : null}</LineChart></ResponsiveContainer></div></section>;
 }
 
 export function StudentRankingChart({
@@ -116,29 +123,29 @@ export function StudentRankingChart({
               strokeDasharray="3 3"
               horizontal={!isVertical}
               vertical={isVertical}
-              stroke="#e2e8f0"
+              stroke="var(--chart-grid)"
             />
             {isVertical ? (
               <>
                 <XAxis
                   dataKey="name"
                   type="category"
-                  tick={{ fill: "#334155", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
                   interval={0}
                   angle={0}
                   textAnchor="middle"
                   height={36}
                 />
-                <YAxis type="number" tick={{ fill: "#64748b", fontSize: 11 }} />
+                <YAxis type="number" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
               </>
             ) : (
               <>
-                <XAxis type="number" tick={{ fill: "#64748b", fontSize: 11 }} />
+                <XAxis type="number" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
                 <YAxis
                   dataKey="name"
                   type="category"
                   width={150}
-                  tick={{ fill: "#334155", fontSize: 11 }}
+                  tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
                 />
               </>
             )}

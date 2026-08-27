@@ -185,18 +185,18 @@ export function MonthlyRevenueTable({
       <div className="mt-4 h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartRows} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="month"
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
             />
             <YAxis
               tickFormatter={(value) => formatRevenueAxis(Number(value))}
               tickLine={false}
               axisLine={false}
-              tick={{ fill: "#64748b", fontSize: 11 }}
+              tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
             />
             <Tooltip
               content={
@@ -211,46 +211,46 @@ export function MonthlyRevenueTable({
             {comparisonEnabled ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
             {monthlyBars && !cumulative ? (
               <>
-                <Bar dataKey={currentDataKey} name={currentAcademicYear ?? "Revenue"} fill="#0f766e" radius={[4, 4, 0, 0]} />
+                <Bar dataKey={currentDataKey} name={currentAcademicYear ?? "Revenue"} fill="var(--chart-primary)" radius={[4, 4, 0, 0]} />
               </>
             ) : (
               <Line
                 type="monotone"
                 dataKey={currentDataKey}
                 name={currentAcademicYear ?? "Revenue"}
-                stroke="#0f766e"
+                stroke="var(--chart-primary)"
                 strokeWidth={3}
-                dot={{ r: 3, fill: "#0f766e" }}
+                dot={{ r: 3, fill: "var(--chart-primary)" }}
                 activeDot={{ r: 5 }}
               />
             )}
             {comparisonEnabled ? (
               monthlyBars && !cumulative ? (
-                <Bar dataKey={previousDataKey} name="LY" fill="#2563eb" radius={[4, 4, 0, 0]} />
+                <Bar dataKey={previousDataKey} name="LY" fill="var(--chart-secondary)" radius={[4, 4, 0, 0]} />
               ) : (
                 <Line
                   type="monotone"
                   dataKey={previousDataKey}
                   name="LY"
-                  stroke="#2563eb"
+                  stroke="var(--chart-secondary)"
                   strokeWidth={2.5}
-                  dot={{ r: 3, fill: "#2563eb" }}
+                  dot={{ r: 3, fill: "var(--chart-secondary)" }}
                   activeDot={{ r: 5 }}
                 />
               )
             ) : null}
             {comparisonEnabled && showLastTwoYears ? (
               monthlyBars && !cumulative ? (
-                <Bar dataKey={lastTwoYearsDataKey} name="L2Y" fill="#64748b" radius={[4, 4, 0, 0]} />
+                <Bar dataKey={lastTwoYearsDataKey} name="L2Y" fill="var(--chart-axis-muted)" radius={[4, 4, 0, 0]} />
               ) : (
                 <Line
                   type="monotone"
                   dataKey={lastTwoYearsDataKey}
                   name="L2Y"
-                  stroke="#64748b"
+                  stroke="var(--chart-axis-muted)"
                   strokeWidth={2}
                   strokeDasharray="5 5"
-                  dot={{ r: 2, fill: "#64748b" }}
+                  dot={{ r: 2, fill: "var(--chart-axis-muted)" }}
                   activeDot={{ r: 4 }}
                 />
               )
@@ -260,10 +260,10 @@ export function MonthlyRevenueTable({
                 type="monotone"
                 dataKey={targetDataKey}
                 name="Target"
-                stroke="#0f172a"
+                stroke="var(--chart-fifth)"
                 strokeWidth={2}
                 strokeDasharray="8 5"
-                dot={{ r: 2, fill: "#0f172a" }}
+                dot={{ r: 2, fill: "var(--chart-fifth)" }}
                 activeDot={{ r: 4 }}
               />
             ) : null}

@@ -1,6 +1,8 @@
 import { AppShell } from "@/components/app-shell";
 import { createSupabaseAuthServerClient } from "@/lib/supabase-auth";
 import { redirect } from "next/navigation";
+import { isAdminEmail } from "@/lib/admin-auth";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 
 export default async function DashboardLayout({
   children,
@@ -12,13 +14,15 @@ export default async function DashboardLayout({
   if (!user) {
     redirect("/login");
   }
-  const { data: profile } = user
-    ? await supabase
-        .from("t_app_user")
-        .select("name")
-        .eq("id", user.id)
-        .maybeSingle()
-    : { data: null };
+  const { data: profile } = await createSupabaseServiceRoleClient()
+    .from("t_app_user")
+    .select("name,access_revenue_dashboard")
+    .eq("id", user.id)
+    .maybeSingle();
+  if (!profile?.access_revenue_dashboard && !isAdminEmail(user.email ?? "")) {
+    await supabase.auth.signOut();
+    redirect("/login?error=Akun%20tidak%20memiliki%20akses%20ke%20dashboard%20revenue.");
+  }
 
   return (
     <AppShell

@@ -17,16 +17,25 @@ async function fetchCount(table: string) {
 
 export default async function SettingsPage() {
   await requireAdmin();
-  const [users, branches, roles, userRows] = await Promise.all([
+  const [users, branches, roles, userRows, roleRows, positionRows, userBranchRows, branchRows] = await Promise.all([
     fetchCount("t_app_user"),
     fetchCount("t_branch"),
     fetchCount("t_role"),
-    supabaseRestFetch("t_app_user?select=id,name,access_revenue_dashboard&order=name&limit=1000"),
+    supabaseRestFetch("t_app_user?select=id,name,role_id,position_id,access_revenue_dashboard&user_grade=gte.2&order=name&limit=1000"),
+    supabaseRestFetch("t_role?select=role_id,role_name&limit=1000"),
+    supabaseRestFetch("t_position?select=position_id,position_name&limit=1000"),
+    supabaseRestFetch("t_dashboard_user_branch?select=user_id,branch_id&limit=5000"),
+    supabaseRestFetch("t_branch?select=branch_id,branch_name&order=branch_name&limit=1000"),
   ]);
-  const profiles = userRows.ok ? await userRows.json() as { id: string; name?: string; access_revenue_dashboard?: boolean }[] : [];
+  const profiles = userRows.ok ? await userRows.json() as { id: string; name?: string; role_id?: number; position_id?: number; access_revenue_dashboard?: boolean }[] : [];
+  const rolesMap = roleRows.ok ? new Map((await roleRows.json() as { role_id: number; role_name: string }[]).map((row) => [row.role_id, row.role_name])) : new Map<number, string>();
+  const positionsMap = positionRows.ok ? new Map((await positionRows.json() as { position_id: number; position_name: string }[]).map((row) => [row.position_id, row.position_name])) : new Map<number, string>();
+  const branchesMap = branchRows.ok ? new Map((await branchRows.json() as { branch_id: number; branch_name: string }[]).map((row) => [row.branch_id, row.branch_name])) : new Map<number, string>();
+  const branchesByUser = new Map<string, { id: number; name: string }[]>();
+  if (userBranchRows.ok) for (const row of await userBranchRows.json() as { user_id: string; branch_id: number }[]) { const list = branchesByUser.get(row.user_id) ?? []; const name = branchesMap.get(row.branch_id); if (name) list.push({ id: row.branch_id, name }); branchesByUser.set(row.user_id, list); }
   const authUsers = await createSupabaseServiceRoleClient().auth.admin.listUsers({ page: 1, perPage: 1000 });
   const emailById = new Map((authUsers.data.users ?? []).map((user) => [user.id, user.email ?? ""]));
-  const adminUsers = profiles.map((profile) => ({ id: profile.id, name: profile.name ?? "", email: emailById.get(profile.id) ?? "", accessRevenue: Boolean(profile.access_revenue_dashboard) }));
+  const adminUsers = profiles.map((profile) => ({ id: profile.id, name: profile.name ?? "", email: emailById.get(profile.id) ?? "", role: rolesMap.get(profile.role_id ?? -1) ?? "", position: positionsMap.get(profile.position_id ?? -1) ?? "", branches: branchesByUser.get(profile.id) ?? [], accessRevenue: Boolean(profile.access_revenue_dashboard) }));
 
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -62,17 +71,14 @@ export default async function SettingsPage() {
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-950">User & Access</h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Modul user management berikutnya dapat menggunakan `t_app_user`, `t_role`, `t_position`, dan `t_app_user_branch`.
-            Halaman ini sudah disiapkan sebagai entry point terpisah.
+            Kelola akses Revenue Dashboard dan branch setiap user melalui tabel di bawah.
           </p>
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <button type="button" disabled className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-400">Tambah User</button>
-            <button type="button" disabled className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-400">Role Access</button>
-            <button type="button" disabled className="rounded-md border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-400">Branch Access</button>
-          </div>
         </div>
       </section>
-      <AdminUserTable users={adminUsers} />
+      <AdminUserTable
+        users={adminUsers}
+        branchOptions={Array.from(branchesMap, ([id, name]) => ({ id, name }))}
+      />
     </div>
   );
 }
