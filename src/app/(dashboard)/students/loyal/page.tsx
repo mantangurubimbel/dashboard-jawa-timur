@@ -33,7 +33,7 @@ export default async function StudentsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">Loyal Students</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Ringkasan student unik, status, distribusi branch, dan tren pendaftaran.</p>
+        <p className="mt-2 text-sm text-slate-600">Summary of unique students, status, branch distribution, and registration trends.</p>
       </header>
       <StudentFilters options={data.filters} showDateFilters={false} values={{ academicYear, branchId: value("branchId"), fromDate: "", toDate: "" }} />
       <StudentLoyalTable rows={data.loyalStudents} />

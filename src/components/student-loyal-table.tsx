@@ -58,7 +58,7 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500">
               <tr>
-                {["NIS", "Nama", "Branch", "Pembelian BAC", "Tahun Ajaran"].map((label) => (
+                {["Student ID", "Name", "Branch", "BAC Purchases", "Academic Years"].map((label) => (
                   <th key={label} className="px-3 py-2 font-semibold">{label}</th>
                 ))}
               </tr>
@@ -90,7 +90,7 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
                   <td className="px-3 py-2 text-slate-600">{row.academicYears}</td>
                 </tr>
               ))}
-              {!rows.length ? <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">Belum ada siswa loyal pada tahun ajaran ini.</td></tr> : null}
+              {!rows.length ? <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">No loyal students found for this academic year.</td></tr> : null}
             </tbody>
           </table>
         </div>
@@ -116,13 +116,13 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
           <div className="grid gap-3 border-b border-slate-200 px-4 py-3 sm:grid-cols-2">
             <p className="text-xs text-slate-700"><span className="font-semibold">User Serial</span><br />{hoveredStudent.userSerial}</p>
             <p className="text-xs text-slate-700"><span className="font-semibold">Email</span><br />{hoveredStudent.email}</p>
-            <p className="text-xs text-slate-700"><span className="font-semibold">Tanggal Lahir</span><br />{hoveredStudent.birthDate}</p>
+            <p className="text-xs text-slate-700"><span className="font-semibold">Birth Date</span><br />{hoveredStudent.birthDate}</p>
           </div>
           <div className="max-h-64 overflow-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead className="bg-slate-100 text-slate-500">
                 <tr>
-                  {["Tahun Ajaran", "Grade", "Asal Sekolah", "Branch"].map((label) => <th key={label} className="px-3 py-2 font-semibold">{label}</th>)}
+                  {["Academic Year", "Grade", "Source School", "Branch"].map((label) => <th key={label} className="px-3 py-2 font-semibold">{label}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -138,7 +138,7 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
             </table>
           </div>
           <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-            {formatNumber(hoveredStudent.history.length)} riwayat pembelian
+            {formatNumber(hoveredStudent.history.length)} purchase history records
           </div>
         </div>,
         document.body,

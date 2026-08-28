@@ -4,6 +4,7 @@ import { SchoolAccountsTable } from "@/components/school-accounts-table";
 import { getSchoolAnalytics } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
 import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +18,7 @@ export default async function SchoolsPage({
     const raw = params[key];
     return Array.isArray(raw) ? raw[0] ?? "" : raw ?? "";
   };
+  const branchScope = await getDashboardBranchScope();
   const academicYears = await getRevenueAcademicYearOptions();
   const academicYear = academicYears.some((year) => year.id === value("academicYear"))
     ? value("academicYear")
@@ -26,12 +28,12 @@ export default async function SchoolsPage({
       academicYear,
       level: value("level"),
       isBulkBuying: null,
-    }),
+    }, branchScope),
     getSchoolAnalytics({
       academicYear,
       level: value("level"),
       isBulkBuying: true,
-    }),
+    }, branchScope),
   ]);
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -43,7 +45,7 @@ export default async function SchoolsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">By Revenue</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Ranking sekolah berdasarkan total revenue transaksi.</p>
+        <p className="mt-2 text-sm text-slate-600">School ranking by total transaction revenue.</p>
       </header>
       <SchoolFilters
         academicYears={academicYears.map((year) => year.id)}
@@ -52,11 +54,11 @@ export default async function SchoolsPage({
       <SchoolAccountsTable rows={rows} />
       <SchoolAccountsTable
         rows={bulkRows}
-        title="Kontributor Revenue Bulk Buying"
-        subtitle="Rangking sekolah dengan penjualan bulk buying tertinggi"
+        title="Top Bulk Buying Revenue Contributors"
+        subtitle="Schools with the highest bulk buying sales"
       />
       <p className="text-xs text-slate-500">
-        {formatNumber(rows.length)} sekolah memiliki NPSN terpetakan sesuai filter.
+        {formatNumber(rows.length)} schools have a mapped NPSN for the selected filters.
       </p>
     </div>
   );

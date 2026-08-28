@@ -1,6 +1,6 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { formatNumber } from "@/lib/format";
 
 const colors = [
@@ -94,7 +94,55 @@ export function StudentTrendChart({
       )
     : data;
 
-  return <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm"><h2 className="text-base font-semibold text-slate-950">Student per Bulan</h2><p className="mt-1 text-sm text-slate-500">{subtitle}</p><div className="mt-4 h-72"><ResponsiveContainer width="100%" height="100%"><LineChart data={chartData}><CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" /><XAxis dataKey="period" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} /><YAxis tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} /><Tooltip content={<TooltipBox />} />{showCumulative ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}<Line type="monotone" dataKey="students" name="Jumlah per Bulan" stroke="var(--chart-primary)" strokeWidth={3} dot={{ r: 3, fill: "var(--chart-primary)" }} activeDot={{ r: 5, fill: "var(--chart-primary)" }} />{showCumulative ? <Line type="monotone" dataKey="cumulativeStudents" name="Kumulatif" stroke="var(--chart-secondary)" strokeWidth={2.5} dot={{ r: 3, fill: "var(--chart-secondary)" }} activeDot={{ r: 5, fill: "var(--chart-secondary)" }} /> : null}</LineChart></ResponsiveContainer></div></section>;
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <h2 className="text-base font-semibold text-slate-950">Student per Bulan</h2>
+      <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
+      <div className="mt-4 h-72">
+        <ResponsiveContainer width="100%" height="100%">
+          <AreaChart data={chartData}>
+            <defs>
+              <linearGradient id="student-trend-area-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-primary)" stopOpacity={0.45} />
+                <stop offset="95%" stopColor="var(--chart-primary)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="student-trend-cumulative-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-secondary)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="var(--chart-secondary)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
+            <XAxis dataKey="period" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
+            <YAxis tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
+            <Tooltip content={<TooltipBox />} />
+            {showCumulative ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
+            <Area
+              type="monotone"
+              dataKey="students"
+              name="Jumlah per Bulan"
+              stroke="var(--chart-primary)"
+              strokeWidth={3}
+              fill="url(#student-trend-area-gradient)"
+              dot={{ r: 3, fill: "var(--chart-primary)" }}
+              activeDot={{ r: 5, fill: "var(--chart-primary)" }}
+            />
+            {showCumulative ? (
+              <Area
+                type="monotone"
+                dataKey="cumulativeStudents"
+                name="Kumulatif"
+                stroke="var(--chart-secondary)"
+                strokeWidth={2.5}
+                fill="url(#student-trend-cumulative-gradient)"
+                dot={{ r: 3, fill: "var(--chart-secondary)" }}
+                activeDot={{ r: 5, fill: "var(--chart-secondary)" }}
+              />
+            ) : null}
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </section>
+  );
 }
 
 export function StudentRankingChart({

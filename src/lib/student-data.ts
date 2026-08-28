@@ -1,4 +1,9 @@
 import { supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
+import {
+  DashboardBranchScope,
+  getDashboardBranchScope,
+  resolveScopedBranchId,
+} from "@/lib/dashboard-access";
 
 type StudentRow = {
   nis: string;
@@ -157,6 +162,7 @@ async function fetchAll<T>(
   select: string,
   order?: string,
   init: SupabaseFetchInit = {},
+  query: Record<string, string> = {},
 ) {
   const rows: T[] = [];
   for (let offset = 0; ; offset += 1000) {
@@ -164,6 +170,7 @@ async function fetchAll<T>(
       select,
       limit: "1000",
       offset: String(offset),
+      ...query,
     });
     if (order) params.set("order", order);
     const response = await supabaseRestFetch(`${path}?${params.toString()}`, init);
@@ -254,18 +261,29 @@ export async function getStudentOverviewData(filters: {
   toDate?: string;
   status?: string;
   level?: string;
-} = {}): Promise<StudentOverviewData> {
+} = {},
+  branchScope?: DashboardBranchScope,
+): Promise<StudentOverviewData> {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const effectiveBranchId = resolveScopedBranchId(scope, filters.branchId);
+  const scopedFilters = { ...filters, branchId: effectiveBranchId };
   const cacheInit: SupabaseFetchInit = {
     next: { revalidate: 30, tags: ["students-overview"] },
   };
+  const branchQuery: Record<string, string> = scope === null
+    ? {}
+    : scope.length
+      ? { branch_id: `in.(${scope.join(",")})` }
+      : { branch_id: "in.(-1)" };
   const [rawStudents, branches, grades, schoolRows] = await Promise.all([
     fetchAll<StudentRow>(
       "t_students",
       "nis,payment_date,academic_year,user_serial,user_name,user_phone,birth_date,email,grade_id,npsn,rombel_id,agent_id,status,branch_id",
       "payment_date.desc",
       cacheInit,
+      branchQuery,
     ),
-    fetchAll<BranchRow>("t_branch", "branch_id,branch_name,region_id", undefined, cacheInit),
+    fetchAll<BranchRow>("t_branch", "branch_id,branch_name,region_id", undefined, cacheInit, branchQuery),
     fetchAll<GradeRow>("t_grade", "grade_id,grade,level", undefined, cacheInit),
     fetchAll<{ npsn: string; name: string; level: string | null }>(
       "t_master_school",
@@ -280,8 +298,8 @@ export async function getStudentOverviewData(filters: {
     (a, b) => b.localeCompare(a, undefined, { numeric: true }),
   );
   const currentAcademicYear =
-    filters.academicYear && academicYears.includes(filters.academicYear)
-      ? filters.academicYear
+    scopedFilters.academicYear && academicYears.includes(scopedFilters.academicYear)
+      ? scopedFilters.academicYear
       : academicYears[0] ?? "26/27";
   const branchById = new Map(branches.map((row) => [row.branch_id, row]));
   const gradeById = new Map(grades.map((row) => [row.grade_id, row]));
@@ -291,11 +309,11 @@ export async function getStudentOverviewData(filters: {
     const grade = row.grade_id === null ? null : gradeById.get(row.grade_id);
     return (
       row.academic_year === currentAcademicYear &&
-      (filters.branchId === undefined || row.branch_id === filters.branchId) &&
-      (!filters.fromDate || row.payment_date >= filters.fromDate) &&
-      (!filters.toDate || row.payment_date <= filters.toDate) &&
-      (!filters.status || row.status === filters.status) &&
-      (!filters.level || grade?.level === filters.level)
+      (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+      (!scopedFilters.fromDate || row.payment_date >= scopedFilters.fromDate) &&
+      (!scopedFilters.toDate || row.payment_date <= scopedFilters.toDate) &&
+      (!scopedFilters.status || row.status === scopedFilters.status) &&
+      (!scopedFilters.level || grade?.level === scopedFilters.level)
     );
   });
 
@@ -370,18 +388,18 @@ export async function getStudentOverviewData(filters: {
   const lyAcademicYear = previousAcademicYear(currentAcademicYear, 1);
   const l2yAcademicYear = previousAcademicYear(currentAcademicYear, 2);
   const currentRows = filtered;
-  const currentEndDate = filters.toDate ||
+  const currentEndDate = scopedFilters.toDate ||
     currentRows.map((row) => row.payment_date).sort().at(-1) ||
     "";
-  const currentStartDate = filters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
+  const currentStartDate = scopedFilters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
   const lySamePeriodStart = shiftYear(currentStartDate, 1);
   const lySamePeriodEnd = shiftYear(currentEndDate, 1);
   const l2ySamePeriodStart = shiftYear(currentStartDate, 2);
   const l2ySamePeriodEnd = shiftYear(currentEndDate, 2);
   const comparisonRows = students.filter((row) => (
-    (filters.branchId === undefined || row.branch_id === filters.branchId) &&
-    (!filters.status || row.status === filters.status) &&
-    (!filters.level || gradeById.get(row.grade_id ?? -1)?.level === filters.level)
+    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+    (!scopedFilters.status || row.status === scopedFilters.status) &&
+    (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
   ));
   const groupByNpsn = (rows: StudentRow[]) => {
     const grouped = new Map<string, StudentRow[]>();
@@ -423,7 +441,7 @@ export async function getStudentOverviewData(filters: {
               ? ["3 SD", "4 SD", "5 SD", "6 SD"]
               : [];
       const historyRows = students.filter((row) =>
-        row.npsn === npsn && (!filters.branchId || row.branch_id === filters.branchId),
+        row.npsn === npsn && (!scopedFilters.branchId || row.branch_id === scopedFilters.branchId),
       );
       const history = Array.from(new Set(historyRows.map((row) => row.academic_year)))
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
@@ -432,7 +450,7 @@ export async function getStudentOverviewData(filters: {
           const nises = new Set<string>();
           for (const row of studentsByNpsn.get(npsn) ?? []) {
             if (row.academic_year !== academicYear) continue;
-            if (filters.branchId && row.branch_id !== filters.branchId) continue;
+            if (scopedFilters.branchId && row.branch_id !== scopedFilters.branchId) continue;
             const grade = row.grade_id === null ? null : gradeById.get(row.grade_id)?.grade;
             const gradeLabel = grade === "12 SMA" || grade === "Gapyear" ? "12 SMA" : grade;
             if (gradeLabel && gradeLabels.includes(gradeLabel)) {
@@ -510,9 +528,9 @@ export async function getStudentOverviewData(filters: {
   for (const row of students) {
     const yearIndex = comparisonYears.indexOf(row.academic_year);
     if (yearIndex === -1) continue;
-    if (filters.branchId !== undefined && row.branch_id !== filters.branchId) continue;
-    if (filters.fromDate && row.payment_date < (yearIndex === 0 ? filters.fromDate : shiftYear(filters.fromDate, yearIndex))) continue;
-    if (filters.toDate && row.payment_date > (yearIndex === 0 ? filters.toDate : shiftYear(filters.toDate, yearIndex))) continue;
+    if (scopedFilters.branchId !== undefined && row.branch_id !== scopedFilters.branchId) continue;
+    if (scopedFilters.fromDate && row.payment_date < (yearIndex === 0 ? scopedFilters.fromDate : shiftYear(scopedFilters.fromDate, yearIndex))) continue;
+    if (scopedFilters.toDate && row.payment_date > (yearIndex === 0 ? scopedFilters.toDate : shiftYear(scopedFilters.toDate, yearIndex))) continue;
     if (!row.npsn) continue;
     const grade = row.grade_id === null ? null : gradeById.get(row.grade_id)?.grade;
     const gradeKey = grade === "10 SMA" ? "grade10" : grade === "11 SMA" ? "grade11" : grade === "12 SMA" || grade === "Gapyear" ? "grade12" : null;
@@ -549,8 +567,8 @@ export async function getStudentOverviewData(filters: {
       const bTotal = b.years[0]?.total ?? 0;
       return bTotal - aTotal || a.school.localeCompare(b.school);
     });
-  const periodStart = filters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
-  const periodEnd = filters.toDate ||
+  const periodStart = scopedFilters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
+  const periodEnd = scopedFilters.toDate ||
     currentRows.map((row) => row.payment_date).sort().at(-1) ||
     periodStart;
   const firstWeekStart = startOfWeek(periodStart);
@@ -586,9 +604,9 @@ export async function getStudentOverviewData(filters: {
       .sort((a, b) => a.branch.localeCompare(b.branch)),
   };
   const comparisonBase = students.filter((row) => (
-    (filters.branchId === undefined || row.branch_id === filters.branchId) &&
-    (!filters.status || row.status === filters.status) &&
-    (!filters.level || gradeById.get(row.grade_id ?? -1)?.level === filters.level)
+    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+    (!scopedFilters.status || row.status === scopedFilters.status) &&
+    (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
   ));
   const countUnique = (rows: StudentRow[]) => new Set(rows.map((row) => row.nis)).size;
   const gradeCategory = (row: StudentRow) => {
@@ -696,12 +714,15 @@ export async function getStudentOverviewData(filters: {
 
 export async function getStudentMonthlyData(
   academicYear?: string | null,
+  branchScope?: DashboardBranchScope,
 ): Promise<StudentMonthlyPoint[]> {
-  const rows = await fetchStudentSummaryRows();
+  const rows = await fetchStudentSummaryRows(branchScope);
   return buildStudentMonthlyData(rows, academicYear);
 }
 
-async function fetchStudentSummaryRows() {
+async function fetchStudentSummaryRows(branchScope?: DashboardBranchScope) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return [] as StudentSummaryRow[];
   const rows: StudentSummaryRow[] = [];
   for (let offset = 0; ; offset += 1000) {
     const params = new URLSearchParams({
@@ -711,6 +732,7 @@ async function fetchStudentSummaryRows() {
       offset: String(offset),
       status: "neq.Deleted",
     });
+    if (scope !== null) params.set("branch_id", `in.(${scope.join(",")})`);
     const response = await supabaseRestFetch(`t_students?${params.toString()}`, {
       next: { revalidate: 30, tags: ["students-overview"] },
     });
@@ -745,8 +767,9 @@ function buildStudentMonthlyData(
 
 export async function getStudentKpis(
   academicYear: string,
+  branchScope?: DashboardBranchScope,
 ): Promise<StudentKpis> {
-  const rows = await fetchStudentSummaryRows();
+  const rows = await fetchStudentSummaryRows(branchScope);
   return buildStudentKpis(rows, academicYear);
 }
 
@@ -783,15 +806,24 @@ function buildStudentKpis(
   };
 }
 
-export async function getStudentRevenueSummary(academicYear: string) {
+export async function getStudentRevenueSummary(
+  academicYear: string,
+  branchScope?: DashboardBranchScope,
+) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const branchQuery: Record<string, string> = scope === null
+    ? {}
+    : scope.length
+      ? { branch_id: `in.(${scope.join(",")})` }
+      : { branch_id: "in.(-1)" };
   const [rows, grades, branches] = await Promise.all([
-    fetchStudentSummaryRows(),
+    fetchStudentSummaryRows(scope),
     fetchAll<GradeRow>("t_grade", "grade_id,grade,level", undefined, {
       next: { revalidate: 30, tags: ["students-overview"] },
     }),
     fetchAll<BranchRow>("t_branch", "branch_id,branch_name,region_id", undefined, {
       next: { revalidate: 30, tags: ["students-overview"] },
-    }),
+    }, branchQuery),
   ]);
   const gradeById = new Map(grades.map((row) => [row.grade_id, row]));
   const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));

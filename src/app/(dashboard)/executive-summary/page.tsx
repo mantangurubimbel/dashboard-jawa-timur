@@ -8,28 +8,30 @@ import { SummaryTable } from "@/components/summary-table";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getBranchRevenueSummary, getBulkBuyingGrowth, getDashboardData, getLatestRevenuePaymentDate } from "@/lib/local-data";
 import { getStudentRevenueSummary } from "@/lib/student-data";
+import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function ExecutiveSummaryPage() {
-  const revenuePeriod = await getLatestRevenuePaymentDate();
+  const branchScope = await getDashboardBranchScope();
+  const revenuePeriod = await getLatestRevenuePaymentDate(branchScope);
   const revenue = await getDashboardData({
     fromDate: revenuePeriod.startDate ?? undefined,
     toDate: revenuePeriod.latestDate ?? undefined,
-  });
+  }, branchScope);
   const academicYear = revenue.monthlyRevenueComparison.currentAcademicYear ?? "-";
   // The cumulative chart needs the complete LY curve (through June), while
   // the KPI above intentionally compares only the same AYtD cutoff.
-  const fullYearRevenue = await getDashboardData({ academicYear });
+  const fullYearRevenue = await getDashboardData({ academicYear }, branchScope);
   const bulk = revenuePeriod.startDate && revenuePeriod.latestDate && academicYear !== "-"
-    ? await getBulkBuyingGrowth(academicYear, revenuePeriod.startDate, revenuePeriod.latestDate)
+    ? await getBulkBuyingGrowth(academicYear, revenuePeriod.startDate, revenuePeriod.latestDate, branchScope)
     : { currentRevenue: 0, previousRevenue: 0 };
   // These datasets are independent once the academic year is known; fetch
   // them concurrently so the page does not wait for two full scans in series.
   const [students, topBranchRevenue] = await Promise.all([
-    getStudentRevenueSummary(academicYear),
-    getBranchRevenueSummary(academicYear),
+    getStudentRevenueSummary(academicYear, branchScope),
+    getBranchRevenueSummary(academicYear, branchScope),
   ]);
   const aytdRevenueRows = revenue.monthlyRevenueComparison.rows;
   const revenueRows = aytdRevenueRows.map((row, index) => ({
@@ -59,7 +61,7 @@ export default async function ExecutiveSummaryPage() {
           </div>
         </div>
         <p className="mt-2 text-sm text-slate-600">
-          Ringkasan pertumbuhan revenue dan student tahun ajaran {academicYear}.
+          Revenue and student growth summary for academic year {academicYear}.
         </p>
       </header>
 
@@ -70,9 +72,9 @@ export default async function ExecutiveSummaryPage() {
         <MetricCard label="Rev Bulk Buying" value={formatCurrency(bulkActualRevenue)} detail="Bulk buying txn only" icon={Banknote} />
         <MetricCard label="Growth BB vs LY" value={bulkGrowthVsLy === null ? "-" : `${bulkGrowthVsLy.toFixed(2)}x`} detail="AYtD BB comparison" icon={TrendingUp} />
         <MetricCard label="Total Student" value={formatNumber(students.kpis.totalStudents)} detail="Active & inactive" icon={UsersRound} />
-        <MetricCard label="Active Rombel" value={formatNumber(students.kpis.activeRombel)} detail="Unique rombel per branch" icon={Contact} />
-        <MetricCard label="Avg Stud/Rombel" value={students.kpis.averageStudentsPerRombel.toFixed(1)} detail="15 as target" icon={FileUser} />
-        <MetricCard label="Repeat Student" value={formatNumber(students.kpis.repeatStudents)} detail="Loyal students" icon={ReplyAll} />
+        <MetricCard label="Active Class Groups" value={formatNumber(students.kpis.activeRombel)} detail="Unique class groups per branch" icon={Contact} />
+        <MetricCard label="Avg Students / Class Group" value={students.kpis.averageStudentsPerRombel.toFixed(1)} detail="15 as target" icon={FileUser} />
+        <MetricCard label="Repeat Students" value={formatNumber(students.kpis.repeatStudents)} detail="Loyal students" icon={ReplyAll} />
         <MetricCard label="Renewal Rate" value={`${(students.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat/total students" icon={SquarePercent} />
       </section>
       <BranchRevenuePerformanceChart data={revenue.branchRevenuePerformance} academicYear={revenue.monthlyRevenueComparison.currentAcademicYear} />
@@ -93,7 +95,7 @@ export default async function ExecutiveSummaryPage() {
       <section className="grid gap-6">
         <StudentTrendChart
           data={students.monthlyData}
-          subtitle={`Pertumbuhan jumlah siswa ${academicYear} berdasarkan payment date.`}
+          subtitle={`Student growth for ${academicYear} based on payment date.`}
           showCumulative
         />
       </section>

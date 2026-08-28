@@ -110,7 +110,7 @@ export function AppShell({
             type="button"
             onClick={() => setCollapsed((current) => !current)}
             className={`flex w-full items-center rounded-md px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 hover:text-slate-900 ${collapsed ? "justify-center" : "justify-end"}`}
-            title={collapsed ? "Perluas sidebar" : "Ciutkan sidebar"}
+            title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           >
             {collapsed ? <SquareChevronRight className="h-5 w-5" /> : <SquareChevronLeft className="h-5 w-5" />}
           </button>
@@ -128,7 +128,7 @@ export function AppShell({
           <div className="hidden text-sm text-slate-500 lg:block">Jawa Timur · Revenue Operations</div>
           <div className="flex items-center gap-3">
             <span className="hidden max-w-56 truncate text-sm font-semibold text-slate-700 sm:block">
-              {userName || email || "Akun aktif"}
+              {userName || email || "Active account"}
             </span>
             <ThemeToggle />
             <AccountMenu userName={userName} email={email} />

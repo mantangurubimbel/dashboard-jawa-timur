@@ -5,6 +5,7 @@ import { getAgentAnalytics } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
 import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
+import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
 export const dynamic = "force-dynamic";
 
@@ -38,18 +39,40 @@ export default async function AgentsPage({
     const raw = params[key];
     return Array.isArray(raw) ? raw[0] ?? "" : raw ?? "";
   };
+  const branchScope = await getDashboardBranchScope();
+  const branchParams = new URLSearchParams({
+    select: "branch_id,branch_name",
+    region_id: "not.is.null",
+    order: "branch_name",
+    limit: "1000",
+  });
+  if (branchScope !== null) {
+    if (!branchScope.length) branchParams.set("branch_id", "in.(-1)");
+    else branchParams.set("branch_id", `in.(${branchScope.join(",")})`);
+  }
   const [academicYears, branchesResponse] = await Promise.all([
     getRevenueAcademicYearOptions(),
-    supabaseRestFetch("t_branch?select=branch_id,branch_name&region_id=not.is.null&order=branch_name&limit=1000"),
+    supabaseRestFetch(`t_branch?${branchParams.toString()}`),
   ]);
-  const branches = branchesResponse.ok ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string }[]).map((row) => ({ id: String(row.branch_id), label: row.branch_name })) : [];
+  const branches = branchesResponse.ok
+    ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string }[]).map((row) => ({ id: String(row.branch_id), label: row.branch_name }))
+    : [];
   const academicYear = academicYears.some((year) => year.id === value("academicYear"))
     ? value("academicYear")
     : academicYears[0]?.id ?? "";
   const selectedFromDate = value("fromDate");
   const selectedToDate = value("toDate");
   const latestTxnResponse = await supabaseRestFetch(
-    `t_revenue_txn?select=payment_date&academic_year=eq.${encodeURIComponent(academicYear)}&order=payment_date.desc&limit=1`,
+    (() => {
+      const params = new URLSearchParams({
+        select: "payment_date",
+        academic_year: `eq.${academicYear}`,
+        order: "payment_date.desc",
+        limit: "1",
+      });
+      if (branchScope !== null) params.set("branch_id", branchScope.length ? `in.(${branchScope.join(",")})` : "in.(-1)");
+      return `t_revenue_txn?${params.toString()}`;
+    })(),
   );
   const latestTxnRows = latestTxnResponse.ok
     ? ((await latestTxnResponse.json()) as { payment_date: string }[])
@@ -63,7 +86,7 @@ export default async function AgentsPage({
     branchId: value("branchId") ? Number(value("branchId")) : undefined,
     fromDate: selectedFromDate || undefined,
     toDate: selectedToDate || undefined,
-  });
+  }, branchScope);
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="border-b border-slate-200 pb-5">
@@ -91,7 +114,7 @@ export default async function AgentsPage({
         productivityWeekdays={productivityWeekdays}
         showRevenuePerNewTxn
       />
-      <p className="text-xs text-slate-500">{formatNumber(rows.length)} agent memiliki revenue pada tahun ajaran terpilih.</p>
+      <p className="text-xs text-slate-500">{formatNumber(rows.length)} agents have revenue in the selected academic year.</p>
     </div>
   );
 }

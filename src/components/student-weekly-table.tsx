@@ -20,9 +20,9 @@ export function StudentWeeklyTable({ weeks, rows }: WeeklyStudentTableProps) {
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-base font-semibold text-slate-950">Penambahan Siswa per Pekan</h2>
+        <h2 className="text-base font-semibold text-slate-950">Weekly Student Additions</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Penambahan berdasarkan payment date, dari Senin sampai Minggu.
+          Additions based on payment date, Monday through Sunday.
         </p>
       </div>
       <div className="max-h-[calc(100vh-18rem)] min-h-[360px] overflow-auto">
@@ -76,7 +76,7 @@ export function StudentWeeklyTable({ weeks, rows }: WeeklyStudentTableProps) {
             {!rows.length ? (
               <tr>
                 <td colSpan={weeks.length + 1} className="px-3 py-8 text-center text-slate-500">
-                  Belum ada data penambahan siswa.
+                  No student additions available.
                 </td>
               </tr>
             ) : null}
@@ -84,7 +84,7 @@ export function StudentWeeklyTable({ weeks, rows }: WeeklyStudentTableProps) {
         </table>
       </div>
       <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-        {formatNumber(rows.length)} branch · {formatNumber(weeks.length)} pekan
+        {formatNumber(rows.length)} branches · {formatNumber(weeks.length)} weeks
       </div>
     </section>
   );

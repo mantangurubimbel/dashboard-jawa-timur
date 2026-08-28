@@ -15,7 +15,12 @@ import {
 import { MonthlyRevenueTable } from "@/components/monthly-revenue-table";
 import { UploadRawDataButton } from "@/components/upload-raw-data-button";
 import { formatCurrency, formatNumber } from "@/lib/format";
-import { getBranchRevenuePerformance, getDashboardData } from "@/lib/local-data";
+import {
+  getBranchRevenuePerformance,
+  getDashboardData,
+  getRevenueGrowthSameDate,
+} from "@/lib/local-data";
+import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -43,14 +48,19 @@ export async function RevenuePageContent({
     return Number.isFinite(parsed) ? parsed : undefined;
   };
   const requestedAcademicYear = value("academicYear");
-  const data = await getDashboardData({
+  const dashboardFilters = {
     academicYear: requestedAcademicYear || undefined,
     regionId: numericValue("regionId"),
     branchId: numericValue("branchId"),
     month: value("month") || undefined,
     fromDate: value("fromDate") || undefined,
     toDate: value("toDate") || undefined,
-  });
+  };
+  const branchScope = await getDashboardBranchScope();
+  const [data, sameDateGrowth] = await Promise.all([
+    getDashboardData(dashboardFilters, branchScope),
+    getRevenueGrowthSameDate(dashboardFilters, branchScope),
+  ]);
   const branchPerformance = await getBranchRevenuePerformance(
     data.monthlyRevenueComparison.currentAcademicYear ?? "",
     numericValue("regionId"),
@@ -66,7 +76,7 @@ export async function RevenuePageContent({
   const selectedMonthTarget = selectedMonth
     ? data.monthlyRevenueComparison.rows.find((row) => row.month === selectedMonth)?.targetRevenue ?? 0
     : kpis.targetAnnualRevenue;
-  const targetLabel = showDataActions && selectedMonth ? "Target" : "Target Tahunan";
+  const targetLabel = showDataActions && selectedMonth ? "Target" : "Annual Target";
   const achievementValue =
     showDataActions && selectedMonth
       ? selectedMonthTarget > 0
@@ -93,7 +103,7 @@ export async function RevenuePageContent({
           <p className="text-sm font-semibold uppercase text-teal-700">{eyebrow}</p>
           <h1 className="mt-1 text-3xl font-semibold text-slate-950">{title}</h1>
           <p className="mt-2 text-sm text-slate-600">
-            Summary revenue tahun ajaran {data.monthlyRevenueComparison.currentAcademicYear ?? "-"}.
+            Revenue summary for academic year {data.monthlyRevenueComparison.currentAcademicYear ?? "-"}.
           </p>
         </div>
         {showDataActions ? (
@@ -119,18 +129,18 @@ export async function RevenuePageContent({
         />
       </>
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Actual Revenue" value={formatCurrency(kpis.totalRevenue)} detail={`${formatNumber(kpis.totalTransactions)} transaksi`} icon={Banknote} />
-        <MetricCard label={targetLabel} value={formatCurrency(selectedMonthTarget)} detail={selectedMonth ? `Target bulan ${selectedMonth}` : "Target total branch"} icon={Banknote} />
+        <MetricCard label="Actual Revenue" value={formatCurrency(kpis.totalRevenue)} detail={`${formatNumber(kpis.totalTransactions)} transactions`} icon={Banknote} />
+        <MetricCard label={targetLabel} value={formatCurrency(selectedMonthTarget)} detail={selectedMonth ? `Monthly target ${selectedMonth}` : "Total branch target"} icon={Banknote} />
         <MetricCard label="Achievement" value={achievementValue === null ? "-" : `${(achievementValue * 100).toFixed(1)}%`} detail={`Variance ${formatCurrency(kpis.totalRevenue - selectedMonthTarget)}`} icon={ReceiptText} />
-        <MetricCard label="Growth vs LY" value={kpis.growthVsLy === null ? "-" : `${kpis.growthVsLy.toFixed(2)}x`} detail="Current Year / Last Year" icon={Users} />
-        <MetricCard label="Growth vs L2Y" value={kpis.growthVsL2y === null ? "-" : `${kpis.growthVsL2y.toFixed(2)}x`} detail="Current Year / Last 2 Years" icon={Users} />
+        <MetricCard label="Growth vs LY" value={sameDateGrowth.growthVsLy === null ? "-" : `${sameDateGrowth.growthVsLy.toFixed(2)}x`} detail="Current Year / Last Year" icon={Users} />
+        <MetricCard label="Growth vs L2Y" value={sameDateGrowth.growthVsL2y === null ? "-" : `${sameDateGrowth.growthVsL2y.toFixed(2)}x`} detail="Current Year / Last 2 Years" icon={Users} />
       </section>
       {showDataActions ? (
         <section className="grid gap-6 xl:grid-cols-[1fr_1.4fr]">
           <RevenueSourceChart data={revenueSourceData} />
           <RankingBarChart
             title="Product Mix"
-            description="Komposisi revenue per product (retail)."
+            description="Revenue composition by product (retail)."
             data={data.productRevenueRetail}
             totalRevenue={data.kpis.nonBulkRevenue}
             orientation="vertical"

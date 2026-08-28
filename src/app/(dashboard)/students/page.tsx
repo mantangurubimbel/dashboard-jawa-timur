@@ -40,7 +40,7 @@ export default async function StudentsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">Student Growth</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Ringkasan student unik, status, distribusi branch, dan tren pendaftaran.</p>
+        <p className="mt-2 text-sm text-slate-600">Summary of unique students, status, branch distribution, and registration trends.</p>
       </header>
       <StudentFilters
         options={data.filters}
@@ -52,11 +52,11 @@ export default async function StudentsPage({
         }}
       />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Total Student" value={formatNumber(data.kpis.totalStudents)} detail="NIS unik" icon={UsersRound} />
-        <MetricCard label="Active Rombel" value={formatNumber(data.kpis.activeRombel)} detail="Rombel unik per branch" icon={UserCheck} />
-        <MetricCard label="Avg Student / Rombel" value={data.kpis.averageStudentsPerRombel.toFixed(1)} detail="Total Student / Active Rombel" icon={UserPlus} />
-        <MetricCard label="Repeat Student" value={formatNumber(data.kpis.repeatStudents)} detail="Muncul lebih dari sekali" icon={UsersRound} />
-        <MetricCard label="Renewal Rate" value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat / total student" icon={UserCheck} />
+        <MetricCard label="Total Students" value={formatNumber(data.kpis.totalStudents)} detail="Unique student IDs" icon={UsersRound} />
+        <MetricCard label="Active Class Groups" value={formatNumber(data.kpis.activeRombel)} detail="Unique class groups per branch" icon={UserCheck} />
+        <MetricCard label="Avg Students / Class Group" value={data.kpis.averageStudentsPerRombel.toFixed(1)} detail="Total students / active class groups" icon={UserPlus} />
+        <MetricCard label="Repeat Students" value={formatNumber(data.kpis.repeatStudents)} detail="Appears more than once" icon={UsersRound} />
+        <MetricCard label="Renewal Rate" value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat students / total students" icon={UserCheck} />
       </section>
       <section className="grid gap-6">
         <StudentTrendChart data={data.monthlyStudents} />

@@ -67,30 +67,30 @@ export function AgentFilters({
             aria-label="Branch"
             className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
           >
-            <option value="">Semua branch</option>
+            <option value="">All branches</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
           </select>
           <label className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-500">Dari tanggal</span>
+            <span className="text-xs text-slate-500">From date</span>
             <input
               type="date"
               value={draft.fromDate}
               onChange={(event) => update("fromDate", event.target.value)}
-              aria-label="Dari tanggal"
+              aria-label="From date"
               className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             />
           </label>
           <label className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-500">Sampai tanggal</span>
+            <span className="text-xs text-slate-500">To date</span>
             <input
               type="date"
               value={draft.toDate}
               onChange={(event) => update("toDate", event.target.value)}
-              aria-label="Sampai tanggal"
+              aria-label="To date"
               className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             />
           </label>
-          {pending ? <span className="text-xs text-slate-400">Memuat...</span> : null}
+          {pending ? <span className="text-xs text-slate-400">Loading...</span> : null}
           <button type="button" onClick={reset} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100"><RotateCcw className="h-3.5 w-3.5" />Reset</button>
         </div>
       </div>

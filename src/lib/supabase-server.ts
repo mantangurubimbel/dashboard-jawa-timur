@@ -7,6 +7,10 @@ export type SupabaseFetchInit = RequestInit & {
   };
 };
 
+function isNewSupabaseApiKey(key: string) {
+  return key.startsWith("sb_publishable_") || key.startsWith("sb_secret_");
+}
+
 export function getSupabaseServerConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -21,12 +25,25 @@ export function getSupabaseServerConfig() {
 export function createSupabaseServiceRoleClient() {
   const { url, serviceRoleKey } = getSupabaseServerConfig();
 
+  // New Supabase API keys are opaque API keys, not JWTs. The Supabase JS
+  // database client still uses the key as its Bearer fallback, so strip that
+  // header and keep the key in `apikey`, where the API gateway expects it.
+  const apiKeyOnlyFetch: typeof fetch = async (input, init) => {
+    const headers = new Headers(init?.headers);
+    headers.delete("authorization");
+    headers.set("apikey", serviceRoleKey);
+    return fetch(input, { ...init, headers });
+  };
+
   return createClient(url, serviceRoleKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,
       detectSessionInUrl: false,
     },
+    ...(isNewSupabaseApiKey(serviceRoleKey)
+      ? { global: { fetch: apiKeyOnlyFetch } }
+      : {}),
   });
 }
 
@@ -39,7 +56,7 @@ export async function supabaseRestFetch(
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const headers = new Headers(init.headers);
     headers.set("apikey", serviceRoleKey);
-    if (attempt < 2) {
+    if (!isNewSupabaseApiKey(serviceRoleKey) && attempt < 2) {
       headers.set("authorization", `Bearer ${serviceRoleKey}`);
     } else {
       headers.delete("authorization");

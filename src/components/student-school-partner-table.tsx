@@ -85,7 +85,7 @@ function SchoolHistoryTooltip({
         <table className="w-full border-collapse text-left text-xs">
           <thead className="bg-slate-100 text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-semibold">Tahun Ajaran</th>
+              <th className="px-3 py-2 font-semibold">Academic Year</th>
               {columns.map((column) => (
                 <th key={column} className="px-3 py-2 text-center font-semibold">
                   {column}
@@ -112,7 +112,7 @@ function SchoolHistoryTooltip({
         </table>
       </div>
       <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-        {formatNumber(school.history.length)} tahun ajaran ditampilkan
+        {formatNumber(school.history.length)} academic years displayed
       </div>
     </div>
   );
@@ -173,7 +173,7 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
           <p className="mt-1 text-sm text-slate-500">School ranking based on BAC student count</p>
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600">
-            <span className="whitespace-nowrap">Level sekolah</span>
+            <span className="whitespace-nowrap">School level</span>
             <select
               value={selectedLevel}
               onChange={(event) => {
@@ -181,11 +181,11 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
                 setHoveredSchool(null);
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-              aria-label="Filter level sekolah"
+              aria-label="Filter school level"
             >
-              <option value="">Semua level</option>
+              <option value="">All levels</option>
               {["SMA", "SMP", "SD", "-"].map((level) => (
-                <option key={level} value={level}>{level === "-" ? "Tidak terpetakan" : level}</option>
+                <option key={level} value={level}>{level === "-" ? "Unmapped" : level}</option>
               ))}
             </select>
           </label>
@@ -194,7 +194,7 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
           <table className="w-full min-w-[920px] border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500">
               <tr>
-                {["NPSN", "Nama Sekolah", "Level", "Jumsis", "vs LY", "vs L2Y"].map((label, index) => (
+                {["NPSN", "School Name", "Level", "Students", "vs LY", "vs L2Y"].map((label, index) => (
                   <th key={label} className={`px-3 py-2 font-semibold ${index > 2 ? "text-center" : ""}`}>
                     {label}
                   </th>
@@ -229,7 +229,7 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
                   <td className="px-3 py-2 text-center"><Ratio current={row.students} samePeriod={row.l2ySamePeriod} endOfYear={row.l2yEndOfYear} /></td>
                 </tr>
               ))}
-              {!filteredRows.length ? <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-500">Belum ada data School Partner.</td></tr> : null}
+              {!filteredRows.length ? <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-500">No School Partner data available.</td></tr> : null}
             </tbody>
           </table>
         </div>

@@ -6,16 +6,16 @@ export function RecentTransactions({ data }: { data: RecentTransaction[] }) {
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex items-end justify-between gap-3">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">Transaksi Terbaru</h2>
-          <p className="mt-1 text-sm text-slate-500">10 transaksi terakhir berdasarkan payment date.</p>
+          <h2 className="text-base font-semibold text-slate-950">Recent Transactions</h2>
+          <p className="mt-1 text-sm text-slate-500">10 most recent transactions by payment date.</p>
         </div>
-        <span className="text-xs font-medium text-slate-400">{formatNumber(data.length)} baris</span>
+        <span className="text-xs font-medium text-slate-400">{formatNumber(data.length)} rows</span>
       </div>
       <div className="mt-4 overflow-x-auto rounded-md border border-slate-200">
         <table className="w-full min-w-[680px] border-collapse text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-semibold">Tanggal</th>
+              <th className="px-3 py-2 font-semibold">Date</th>
               <th className="px-3 py-2 font-semibold">Invoice</th>
               <th className="px-3 py-2 font-semibold">Product</th>
               <th className="px-3 py-2 font-semibold">Branch</th>
@@ -47,7 +47,7 @@ export function RecentTransactions({ data }: { data: RecentTransaction[] }) {
             {!data.length ? (
               <tr>
                 <td colSpan={6} className="px-3 py-8 text-center text-sm text-slate-500">
-                  Tidak ada transaksi untuk filter ini.
+                  No transactions match this filter.
                 </td>
               </tr>
             ) : null}
@@ -55,7 +55,7 @@ export function RecentTransactions({ data }: { data: RecentTransaction[] }) {
         </table>
       </div>
       <div className="border-t border-slate-200 pt-3 text-xs text-slate-500">
-        {formatNumber(data.length)} baris ditampilkan
+        {formatNumber(data.length)} rows displayed
       </div>
     </section>
   );

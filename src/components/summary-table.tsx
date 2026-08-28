@@ -20,7 +20,7 @@ export function SummaryTable({ title, data, totalRevenue, columns = "default" }:
         <table className="w-full border-collapse text-left text-sm">
           <thead className="bg-slate-100 text-xs uppercase text-slate-500">
             <tr>
-              <th className="px-3 py-2 font-semibold">Nama</th>
+              <th className="px-3 py-2 font-semibold">Name</th>
               {isBranchRevenue ? (
                 <>
                   <th className="px-3 py-2 text-right font-semibold">New Txn</th>
@@ -74,7 +74,7 @@ export function SummaryTable({ title, data, totalRevenue, columns = "default" }:
         </table>
       </div>
       <div className="border-t border-slate-200 pt-3 text-xs text-slate-500">
-        {formatNumber(data.length)} baris ditampilkan
+        {formatNumber(data.length)} rows displayed
       </div>
     </section>
   );

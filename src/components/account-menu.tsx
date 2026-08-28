@@ -16,7 +16,7 @@ function LogoutAction() {
       className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-[12px] leading-5 font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50"
     >
       <LogOut className="h-4 w-4 text-slate-500" aria-hidden />
-      <span className="text-[12px] leading-5">{pending ? "Keluar..." : "Keluar"}</span>
+      <span className="text-[12px] leading-5">{pending ? "Signing out..." : "Sign out"}</span>
     </button>
   );
 }
@@ -54,7 +54,7 @@ export function AccountMenu({
             className="flex items-center gap-3 px-4 py-3 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
           >
             <KeyRound className="h-4 w-4 text-slate-500" aria-hidden />
-            <span>Ganti password</span>
+            <span>Change password</span>
           </Link>
           <form action={signOut}>
             <LogoutAction />
@@ -66,8 +66,8 @@ export function AccountMenu({
         type="button"
         onClick={() => setOpen((current) => !current)}
         className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-        aria-label={`Menu akun ${userName || email || ""}`.trim()}
-        title={userName || email || "Menu akun"}
+        aria-label={`Account menu ${userName || email || ""}`.trim()}
+        title={userName || email || "Account menu"}
         aria-expanded={open}
         aria-haspopup="menu"
       >

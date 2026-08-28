@@ -1,0 +1,124 @@
+./
+├── AGENTS.md
+├── AGENTS.md.backup
+├── CLAUDE.md
+├── Master Data Jawa Timur - Raw Data Txn.csv
+├── README.md
+├── csv_samples/
+│   ├── convert_tabel_header.csv
+│   └── raw_data.csv
+├── eslint.config.mjs
+├── next-env.d.ts
+├── next.config.ts
+├── package-lock.json
+├── package.json
+├── postcss.config.mjs
+├── proxy.ts
+├── scripts/
+├── src/
+│   ├── app/
+│   │   ├── (dashboard)/
+│   │   │   ├── agents/
+│   │   │   │   └── page.tsx
+│   │   │   ├── executive-summary/
+│   │   │   │   └── page.tsx
+│   │   │   ├── forbidden/
+│   │   │   │   └── page.tsx
+│   │   │   ├── layout.tsx
+│   │   │   ├── loading.tsx
+│   │   │   ├── monthly_revenue/
+│   │   │   │   └── page.tsx
+│   │   │   ├── products/
+│   │   │   │   └── page.tsx
+│   │   │   ├── revenue/
+│   │   │   │   └── page.tsx
+│   │   │   ├── schools/
+│   │   │   │   ├── by-students/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── settings/
+│   │   │   │   ├── actions.ts
+│   │   │   │   └── page.tsx
+│   │   │   └── students/
+│   │   │       ├── loyal/
+│   │   │       │   └── page.tsx
+│   │   │       └── page.tsx
+│   │   ├── api/
+│   │   │   ├── revenue-target-upload/
+│   │   │   │   └── route.ts
+│   │   │   └── revenue-upload/
+│   │   │       └── route.ts
+│   │   ├── auth/
+│   │   │   └── actions.ts
+│   │   ├── change-password/
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   ├── loading.tsx
+│   │   ├── login/
+│   │   │   └── page.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   ├── account-menu.tsx
+│   │   ├── admin-user-table.tsx
+│   │   ├── agent-filters.tsx
+│   │   ├── agent-performance-table.tsx
+│   │   ├── analytics-table.tsx
+│   │   ├── app-shell.tsx
+│   │   ├── dashboard-filters.tsx
+│   │   ├── form-submit-controls.tsx
+│   │   ├── import-revenue-target-button.tsx
+│   │   ├── logout-button.tsx
+│   │   ├── metric-card.tsx
+│   │   ├── monthly-revenue-table.tsx
+│   │   ├── password-input.tsx
+│   │   ├── product-filters.tsx
+│   │   ├── recent-transactions.tsx
+│   │   ├── revenue-charts.tsx
+│   │   ├── school-accounts-table.tsx
+│   │   ├── school-filters.tsx
+│   │   ├── student-branch-summary.tsx
+│   │   ├── student-charts.tsx
+│   │   ├── student-filters.tsx
+│   │   ├── student-loyal-table.tsx
+│   │   ├── student-school-partner-table.tsx
+│   │   ├── student-school-sma-table.tsx
+│   │   ├── student-table.tsx
+│   │   ├── student-weekly-table.tsx
+│   │   ├── summary-table.tsx
+│   │   ├── theme-toggle.tsx
+│   │   └── upload-raw-data-button.tsx
+│   └── lib/
+│       ├── admin-auth.ts
+│       ├── analytics-data.ts
+│       ├── dashboard-access.ts
+│       ├── format.ts
+│       ├── local-data.ts
+│       ├── revenue-filters.ts
+│       ├── revenue-target-import.ts
+│       ├── revenue-transform.ts
+│       ├── student-data.ts
+│       ├── supabase-auth.ts
+│       ├── supabase-server.ts
+│       ├── supabase.ts
+│       └── types.ts
+├── struktur.txt
+├── supabase/
+│   └── migrations/
+│       ├── 202608220002_create_revenue_module.sql
+│       ├── 202608230001_create_analytics_rpcs.sql
+│       ├── 202608240001_optimize_school_accounts_rpc.sql
+│       ├── 202608240002_revenue_year_filter_options.sql
+│       ├── 202608240003_repair_revenue_year_filter_rpc.sql
+│       ├── 202608240004_revenue_month_based_periods.sql
+│       ├── 202608240005_agent_filters.sql
+│       ├── 202608240006_product_filters.sql
+│       ├── 202608250001_school_bulk_buying_card.sql
+│       ├── 202608260001_bulk_buying_growth_rpc.sql
+│       ├── 202608270001_branch_revenue_performance_filters.sql
+│       ├── 202608270002_add_user_grade_to_app_user.sql
+│       └── 202608270003_create_dashboard_user_branch.sql
+├── tsconfig.json
+└── tsconfig.tsbuildinfo
+
+27 directories, 95 files

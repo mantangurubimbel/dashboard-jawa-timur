@@ -1,12 +1,13 @@
 "use client";
 
+import { ArrowDown, ArrowUp } from "lucide-react";
 import {
+  Area,
+  AreaChart,
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Line,
-  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -33,6 +34,15 @@ const regionalPalette = [
   { retail: "var(--chart-regional-5-retail)", bulk: "var(--chart-regional-5-bulk)" },
   { retail: "var(--chart-regional-6-retail)", bulk: "var(--chart-regional-6-bulk)" },
 ];
+
+export type ProductRevenueChartPoint = {
+  rank: number;
+  product: string;
+  revenue: number;
+  share: number | null;
+  lyRevenue?: number;
+  l2yRevenue?: number;
+};
 
 function AxisTick({ x, y, payload }: { x?: number; y?: number; payload?: { value: string } }) {
   return (
@@ -197,20 +207,27 @@ export function MonthlyRevenueChart({ data }: { data: MonthlyPoint[] }) {
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
+          <AreaChart data={data} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="monthly-revenue-area-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-primary)" stopOpacity={0.45} />
+                <stop offset="95%" stopColor="var(--chart-primary)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis dataKey="period" interval={2} tick={<AxisTick />} tickLine={false} axisLine={false} />
             <YAxis hide />
             <Tooltip content={<ChartTooltip />} />
-            <Line
+            <Area
               type="monotone"
               dataKey="revenue"
               stroke="var(--chart-primary)"
               strokeWidth={3}
+              fill="url(#monthly-revenue-area-gradient)"
               dot={false}
               activeDot={{ r: 5, fill: "var(--chart-primary)" }}
             />
-          </LineChart>
+          </AreaChart>
         </ResponsiveContainer>
       </div>
     </section>
@@ -299,6 +316,149 @@ export function RankingBarChart({
             </Bar>
           </BarChart>
         </ResponsiveContainer>
+      </div>
+    </section>
+  );
+}
+
+function ProductGrowthRatio({
+  currentRevenue,
+  previousRevenue,
+}: {
+  currentRevenue: number;
+  previousRevenue?: number;
+}) {
+  if (previousRevenue === undefined || previousRevenue <= 0) {
+    return <span className="text-slate-400">-</span>;
+  }
+
+  const ratio = currentRevenue / previousRevenue;
+  if (ratio > 1) {
+    return (
+      <span className="inline-flex items-center gap-0.5 whitespace-nowrap font-semibold text-emerald-700">
+        <ArrowUp className="h-3.5 w-3.5" aria-hidden />
+        {ratio.toFixed(2)}x
+      </span>
+    );
+  }
+  if (ratio < 1) {
+    return (
+      <span className="inline-flex items-center gap-0.5 whitespace-nowrap font-semibold text-rose-700">
+        <ArrowDown className="h-3.5 w-3.5" aria-hidden />
+        {ratio.toFixed(2)}x
+      </span>
+    );
+  }
+  return <span className="whitespace-nowrap font-semibold text-slate-500">{ratio.toFixed(2)}x</span>;
+}
+
+function ProductRevenueTooltip({
+  active,
+  payload,
+}: {
+  active?: boolean;
+  payload?: { payload?: ProductRevenueChartPoint }[];
+}) {
+  const point = payload?.[0]?.payload;
+  if (!active || !point) return null;
+
+  return (
+    <div className="w-72 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm shadow-lg">
+      <p className="font-semibold text-slate-950">{point.product}</p>
+      <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-slate-600">Revenue</span>
+          <span className="whitespace-nowrap text-right font-semibold text-teal-700">
+            {formatCurrency(point.revenue)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-slate-600">Share</span>
+          <span className="text-right font-semibold text-slate-700">
+            {point.share === null ? "-" : formatPercent(point.share)}
+          </span>
+        </div>
+      </div>
+      <div className="mt-3 border-t border-slate-100 pt-2 text-xs">
+        <div className="flex items-center justify-between gap-4">
+          <span className="text-slate-600">vs LY</span>
+          <ProductGrowthRatio
+            currentRevenue={point.revenue}
+            previousRevenue={point.lyRevenue}
+          />
+        </div>
+        <div className="mt-1 flex items-center justify-between gap-4">
+          <span className="text-slate-600">vs L2Y</span>
+          <ProductGrowthRatio
+            currentRevenue={point.revenue}
+            previousRevenue={point.l2yRevenue}
+          />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function ProductRevenueChart({
+  title,
+  description,
+  data,
+}: {
+  title: string;
+  description: string;
+  data: ProductRevenueChartPoint[];
+}) {
+  return (
+    <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+      <div className="mb-4">
+        <h2 className="text-base font-semibold text-slate-950">{title}</h2>
+        <p className="text-sm text-slate-500">{description}</p>
+      </div>
+      <div className="h-80">
+        {data.length ? (
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={data}
+              layout="vertical"
+              margin={{ left: 12, right: 18, top: 0, bottom: 0 }}
+            >
+              <CartesianGrid
+                strokeDasharray="3 3"
+                horizontal
+                vertical={false}
+                stroke="var(--chart-grid)"
+              />
+              <XAxis
+                type="number"
+                tickFormatter={(value) => `${Number(value) / 1_000_000_000}M`}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }}
+              />
+              <YAxis
+                dataKey="product"
+                type="category"
+                width={150}
+                tickLine={false}
+                axisLine={false}
+                tick={{ fill: "var(--chart-axis)", fontSize: 11 }}
+              />
+              <Tooltip
+                cursor={{ fill: "var(--chart-cursor)", fillOpacity: 0.55 }}
+                content={<ProductRevenueTooltip />}
+              />
+              <Bar dataKey="revenue" name="Revenue" fill="var(--chart-primary)" radius={[0, 4, 4, 0]}>
+                {data.map((entry) => (
+                  <Cell key={`${entry.rank}-${entry.product}`} fill="var(--chart-primary)" />
+                ))}
+              </Bar>
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-slate-500">
+            Belum ada data product.
+          </div>
+        )}
       </div>
     </section>
   );

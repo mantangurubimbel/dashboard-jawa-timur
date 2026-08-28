@@ -9,7 +9,7 @@ type Column<T> = {
 export function AnalyticsTable<T extends { revenue: number }>({
   rows,
   columns,
-  empty = "Belum ada data.",
+  empty = "No data available.",
 }: {
   rows: T[];
   columns: Column<T>[];
@@ -43,7 +43,7 @@ export function AnalyticsTable<T extends { revenue: number }>({
         </tbody>
       </table>
       <div className="border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
-        {formatNumber(rows.length)} baris ditampilkan
+        {formatNumber(rows.length)} rows displayed
       </div>
     </div>
   );

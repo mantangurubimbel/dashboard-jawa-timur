@@ -88,7 +88,7 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
           <div className="flex items-center gap-2">
             <Filter className="h-4 w-4 text-teal-700" aria-hidden />
             <div>
-              <p className="text-sm font-semibold text-slate-950">Filter Dashboard</p>
+              <p className="text-sm font-semibold text-slate-950">Dashboard Filters</p>
             </div>
           </div>
         </div>
@@ -111,7 +111,7 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
               onChange={(event) => updateFilter("regionId", event.target.value)}
               className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             >
-              <option value="">Semua regional</option>
+              <option value="">All regions</option>
               {options.regions.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
@@ -123,7 +123,7 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
               onChange={(event) => updateFilter("branchId", event.target.value)}
               className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             >
-              <option value="">Semua branch</option>
+              <option value="">All branches</option>
               {options.branches
                 .filter(
                   (option) =>
@@ -142,14 +142,14 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
               onChange={(event) => updateFilter("month", event.target.value)}
               className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
             >
-              <option value="">Semua bulan</option>
+              <option value="">All months</option>
               {options.months.map((option) => (
                 <option key={option.id} value={option.id}>{option.label}</option>
               ))}
             </select>
           </label>
           {showDateFilters ? <label className="block">
-            <span className="text-xs font-semibold text-slate-500">Dari tanggal</span>
+            <span className="text-xs font-semibold text-slate-500">From date</span>
             <input
               type="date"
               value={draftValues.fromDate}
@@ -159,7 +159,7 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
           </label> : null}
           <button type="button" onClick={resetFilters} disabled={isPending} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50"><RotateCcw className="h-3.5 w-3.5" aria-hidden />Reset</button>
           {showDateFilters ? <label className="block">
-            <span className="text-xs font-semibold text-slate-500">Sampai tanggal</span>
+            <span className="text-xs font-semibold text-slate-500">To date</span>
             <input
               type="date"
               value={draftValues.toDate}
@@ -169,7 +169,7 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
           </label> : null}
           {isPending ? (
             <div className="flex items-end text-xs text-slate-500 sm:col-span-2 lg:col-span-3 xl:col-span-6">
-              Memuat data terbaru...
+              Loading latest data...
             </div>
           ) : null}
         </div>

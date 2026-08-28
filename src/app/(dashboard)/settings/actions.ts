@@ -22,12 +22,21 @@ export async function toggleRevenueDashboardAccess(formData: FormData) {
 export async function assignDashboardBranch(formData: FormData) {
   await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
-  const branchIdValue = formData.get("branch_id");
-  const branchId = typeof branchIdValue === "string" ? Number(branchIdValue) : NaN;
-  if (!userId || !Number.isSafeInteger(branchId) || branchId <= 0) return;
+  const branchIds = Array.from(
+    new Set(
+      formData
+        .getAll("branch_id")
+        .map((value) => typeof value === "string" ? Number(value) : NaN)
+        .filter((branchId) => Number.isSafeInteger(branchId) && branchId > 0),
+    ),
+  );
+  if (!userId || !branchIds.length) return;
   const { error } = await createSupabaseServiceRoleClient()
     .from("t_dashboard_user_branch")
-    .upsert({ user_id: userId, branch_id: branchId }, { onConflict: "user_id,branch_id" });
+    .upsert(
+      branchIds.map((branchId) => ({ user_id: userId, branch_id: branchId })),
+      { onConflict: "user_id,branch_id" },
+    );
   if (error) throw new Error(`Gagal menambahkan branch: ${error.message}`);
   revalidatePath("/settings");
 }

@@ -13,16 +13,16 @@ export function StudentBranchSummary({ rows }: { rows: BranchSummaryRow[] }) {
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
-        <h2 className="text-base font-semibold text-slate-950">Summary Siswa per Branch</h2>
+        <h2 className="text-base font-semibold text-slate-950">Student Summary by Branch</h2>
         <p className="mt-1 text-sm text-slate-500">
-          Perbandingan jumlah siswa unik tahun ajaran aktif, LY, dan L2Y.
+          Comparison of unique student counts for the active academic year, LY, and L2Y.
         </p>
       </div>
       <div className="max-h-[calc(100vh-18rem)] min-h-[360px] overflow-auto">
         <table className="w-full min-w-[980px] border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500">
           <tr>
-            {["Branch", "Jumsis", "vs LY SP", "vs L2Y SP", "Jumsis LY SP", "Jumsis LY EoAY", "Jumsis L2Y SP", "Jumsis L2Y EoAY"].map((label, index) => (
+            {["Branch", "Students", "vs LY (same period)", "vs L2Y (same period)", "Students LY (same period)", "Students LY (end of academic year)", "Students L2Y (same period)", "Students L2Y (end of academic year)"].map((label, index) => (
               <th key={label} className={`px-3 py-2 font-semibold ${index > 0 ? "text-center" : ""} ${[1, 4, 6].includes(index) ? "border-l border-slate-300" : ""}`}>
                 {label}
               </th>
@@ -56,14 +56,14 @@ export function StudentBranchSummary({ rows }: { rows: BranchSummaryRow[] }) {
           ))}
           {!rows.length ? (
             <tr>
-              <td colSpan={8} className="px-3 py-8 text-center text-slate-500">Belum ada data branch.</td>
+              <td colSpan={8} className="px-3 py-8 text-center text-slate-500">No branch data available.</td>
             </tr>
           ) : null}
           </tbody>
         </table>
       </div>
       <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
-        {formatNumber(rows.length)} branch ditampilkan
+        {formatNumber(rows.length)} branches displayed
       </div>
     </section>
   );

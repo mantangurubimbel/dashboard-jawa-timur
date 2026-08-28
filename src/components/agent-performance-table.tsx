@@ -34,10 +34,10 @@ export function AgentPerformanceTable({
                 "Rank",
                 "Agent",
                 "Branch",
-                "Revenue Non Bulk",
-                "New Txn Non Bulk",
+                "Non-Bulk Revenue",
+                "New Non-Bulk Txn",
                 showRevenuePerNewTxn ? "AOV New Txn" : "Txn Non Bulk",
-                productivityWeekdays === undefined ? "Sekolah" : "Productivity",
+                productivityWeekdays === undefined ? "Schools" : "Productivity",
               ].map((label, index) => (
                 <th key={label} className={`sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold ${index >= 3 ? "text-right" : ""}`}>{label}</th>
               ))}
@@ -67,7 +67,7 @@ export function AgentPerformanceTable({
                 </td>
               </tr>
             ))}
-            {!rows.length ? <tr><td colSpan={7} className="px-3 py-10 text-center text-slate-500">Tidak ada data agent untuk filter ini.</td></tr> : null}
+            {!rows.length ? <tr><td colSpan={7} className="px-3 py-10 text-center text-slate-500">No agent data matches this filter.</td></tr> : null}
           </tbody>
         </table>
       </div>

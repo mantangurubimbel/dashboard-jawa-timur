@@ -38,8 +38,8 @@ export function ThemeToggle() {
       type="button"
       onClick={toggleTheme}
       className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-      aria-label={isDark ? "Gunakan light mode" : "Gunakan dark mode"}
-      title={isDark ? "Gunakan light mode" : "Gunakan dark mode"}
+      aria-label={isDark ? "Use light mode" : "Use dark mode"}
+      title={isDark ? "Use light mode" : "Use dark mode"}
     >
       {isDark ? (
         <Sun className="h-4 w-4" aria-hidden />

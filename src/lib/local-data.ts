@@ -1,6 +1,11 @@
 import { supabaseRpcFetch, supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
 import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
 import {
+  DashboardBranchScope,
+  getDashboardBranchScope,
+  resolveScopedBranchId,
+} from "@/lib/dashboard-access";
+import {
   DashboardData,
   DashboardFilters,
   BranchFilterOption,
@@ -55,11 +60,22 @@ type RegionLookup = {
   region_name: string;
 };
 
+type RevenueAnnualTargetLookup = {
+  academic_year: string;
+  branch_id: number;
+  target_revenue: number | string | null;
+};
+
+type RevenueMonthlyTargetLookup = RevenueAnnualTargetLookup & {
+  month_number: number;
+};
+
 async function fetchAll<T>(
   table: string,
   select: string,
   pageSize = 1000,
   init: SupabaseFetchInit = {},
+  query: Record<string, string> = {},
 ): Promise<T[]> {
   const rows: T[] = [];
 
@@ -68,6 +84,7 @@ async function fetchAll<T>(
       select,
       limit: String(pageSize),
       offset: String(from),
+      ...query,
     });
     const response = await supabaseRestFetch(`${table}?${params.toString()}`, init);
     if (!response.ok) {
@@ -102,11 +119,14 @@ async function fetchTransactions(
     if (options.useStoredAcademicYear !== false && filters.academicYear) {
       params.set("academic_year", `eq.${filters.academicYear}`);
     }
-    if (filters.branchId) params.set("branch_id", `eq.${filters.branchId}`);
+    if (filters.branchId !== undefined) {
+      if (branchIds && !branchIds.includes(filters.branchId)) return [];
+      params.set("branch_id", `eq.${filters.branchId}`);
+    }
     if (filters.month) params.set("month", `ilike.${filters.month} %`);
     if (filters.fromDate) params.append("payment_date", `gte.${filters.fromDate}`);
     if (filters.toDate) params.append("payment_date", `lte.${filters.toDate}`);
-    if (branchIds) {
+    if (branchIds && filters.branchId === undefined) {
       if (!branchIds.length) return [];
       params.set("branch_id", `in.(${branchIds.join(",")})`);
     }
@@ -211,7 +231,7 @@ function summarizeRevenueSource(
 function summarizeBranchRevenuePerformance(
   rows: TransactionRow[],
   branches: BranchLookup[],
-  targetRevenue: number,
+  targetRevenue: number | Map<number, number>,
 ) {
   const grouped = new Map<number, number>();
   for (const row of rows) {
@@ -224,7 +244,9 @@ function summarizeBranchRevenuePerformance(
     .map((branch) => ({
       name: branch.branch_name,
       revenue: grouped.get(branch.branch_id) ?? 0,
-      target: targetRevenue,
+      target: targetRevenue instanceof Map
+        ? targetRevenue.get(branch.branch_id) ?? 0
+        : targetRevenue,
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
@@ -295,6 +317,12 @@ function previousAcademicYear(academicYear: string | undefined, years: string[])
   return years.includes(previous) ? previous : null;
 }
 
+function previousAcademicYearFrom(academicYear: string) {
+  const match = academicYear.match(/^(\d{2})\/(\d{2})$/);
+  if (!match) return null;
+  return `${String((Number(match[1]) + 99) % 100).padStart(2, "0")}/${match[1]}`;
+}
+
 function previousYearDate(date: string | undefined) {
   if (!date) return undefined;
 
@@ -308,9 +336,207 @@ function previousYearDate(date: string | undefined) {
   return `${previousYear}-${String(month).padStart(2, "0")}-${String(safeDay).padStart(2, "0")}`;
 }
 
-export async function getDashboardData(
+function academicMonthNumber(month: string) {
+  const index = academicYearMonthOrder.indexOf(month);
+  return index === -1 ? null : index + 1;
+}
+
+function filterDashboardBranchOptions(
+  dashboard: DashboardData,
+  scope: DashboardBranchScope,
+) {
+  if (scope === null) return dashboard;
+
+  const allowed = new Set(scope);
+  const branches = dashboard.filters.branches.filter((branch) => allowed.has(Number(branch.id)));
+  const regionIds = new Set(branches.map((branch) => branch.regionId));
+
+  return {
+    ...dashboard,
+    filters: {
+      ...dashboard.filters,
+      branches,
+      regions: dashboard.filters.regions.filter((region) => regionIds.has(region.id)),
+    },
+  };
+}
+
+type RevenueGrowthComparison = {
+  currentRevenue: number;
+  previousRevenue: number;
+  lastTwoYearsRevenue: number;
+  growthVsLy: number | null;
+  growthVsL2y: number | null;
+  cutoffDate: string | null;
+  lyCutoffDate: string | null;
+  l2yCutoffDate: string | null;
+};
+
+function revenueGrowthRatio(currentRevenue: number, previousRevenue: number) {
+  return previousRevenue === 0 ? null : currentRevenue / previousRevenue;
+}
+
+function normalizeRevenueGrowthPayload(payload: unknown): RevenueGrowthComparison {
+  const raw = (payload ?? {}) as Record<string, unknown>;
+  const numberValue = (value: unknown) => {
+    const parsed = Number(value ?? 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  };
+  const currentRevenue = numberValue(raw.currentRevenue);
+  const previousRevenue = numberValue(raw.previousRevenue);
+  const lastTwoYearsRevenue = numberValue(raw.lastTwoYearsRevenue);
+  const ratioValue = (value: unknown, fallback: number | null) => {
+    if (value === null || value === undefined) return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  };
+
+  return {
+    currentRevenue,
+    previousRevenue,
+    lastTwoYearsRevenue,
+    growthVsLy: ratioValue(raw.growthVsLy, revenueGrowthRatio(currentRevenue, previousRevenue)),
+    growthVsL2y: ratioValue(raw.growthVsL2y, revenueGrowthRatio(currentRevenue, lastTwoYearsRevenue)),
+    cutoffDate: typeof raw.cutoffDate === "string" ? raw.cutoffDate : null,
+    lyCutoffDate: typeof raw.lyCutoffDate === "string" ? raw.lyCutoffDate : null,
+    l2yCutoffDate: typeof raw.l2yCutoffDate === "string" ? raw.l2yCutoffDate : null,
+  };
+}
+
+function calculateRevenueGrowthFromRows(
+  rows: TransactionRow[],
+  filters: DashboardFilters,
+): RevenueGrowthComparison {
+  const currentAcademicYear = filters.academicYear;
+  if (!currentAcademicYear) {
+    return {
+      currentRevenue: 0,
+      previousRevenue: 0,
+      lastTwoYearsRevenue: 0,
+      growthVsLy: null,
+      growthVsL2y: null,
+      cutoffDate: null,
+      lyCutoffDate: null,
+      l2yCutoffDate: null,
+    };
+  }
+
+  const previousAcademicYear = previousAcademicYearFrom(currentAcademicYear);
+  const lastTwoAcademicYear = previousAcademicYear
+    ? previousAcademicYearFrom(previousAcademicYear)
+    : null;
+  const matchesMonth = (row: TransactionRow) =>
+    !filters.month || monthLabel(row.month) === filters.month;
+  const currentRows = rows.filter((row) =>
+    academicYearFromMonth(row.month) === currentAcademicYear &&
+    matchesMonth(row) &&
+    (!filters.fromDate || row.paymentDate >= filters.fromDate) &&
+    (!filters.toDate || row.paymentDate <= filters.toDate),
+  );
+  const cutoffDate = currentRows.reduce<string | null>(
+    (latest, row) => latest === null || row.paymentDate > latest ? row.paymentDate : latest,
+    null,
+  );
+
+  if (!cutoffDate) {
+    return {
+      currentRevenue: 0,
+      previousRevenue: 0,
+      lastTwoYearsRevenue: 0,
+      growthVsLy: null,
+      growthVsL2y: null,
+      cutoffDate: null,
+      lyCutoffDate: null,
+      l2yCutoffDate: null,
+    };
+  }
+
+  const lyCutoffDate = previousYearDate(cutoffDate) ?? null;
+  const l2yCutoffDate = previousYearDate(lyCutoffDate ?? undefined) ?? null;
+  const lyStartDate = previousYearDate(filters.fromDate) ?? null;
+  const l2yStartDate = previousYearDate(lyStartDate ?? undefined) ?? null;
+  const sumRevenue = (candidateRows: TransactionRow[]) =>
+    candidateRows.reduce((sum, row) => sum + row.revenue, 0);
+  const previousRows = rows.filter((row) =>
+    previousAcademicYear !== null &&
+    academicYearFromMonth(row.month) === previousAcademicYear &&
+    matchesMonth(row) &&
+    !!lyCutoffDate &&
+    row.paymentDate <= lyCutoffDate &&
+    (!lyStartDate || row.paymentDate >= lyStartDate),
+  );
+  const lastTwoRows = rows.filter((row) =>
+    lastTwoAcademicYear !== null &&
+    academicYearFromMonth(row.month) === lastTwoAcademicYear &&
+    matchesMonth(row) &&
+    !!l2yCutoffDate &&
+    row.paymentDate <= l2yCutoffDate &&
+    (!l2yStartDate || row.paymentDate >= l2yStartDate),
+  );
+  const currentRevenue = sumRevenue(currentRows);
+  const previousRevenue = sumRevenue(previousRows);
+  const lastTwoYearsRevenue = sumRevenue(lastTwoRows);
+
+  return {
+    currentRevenue,
+    previousRevenue,
+    lastTwoYearsRevenue,
+    growthVsLy: revenueGrowthRatio(currentRevenue, previousRevenue),
+    growthVsL2y: revenueGrowthRatio(currentRevenue, lastTwoYearsRevenue),
+    cutoffDate,
+    lyCutoffDate,
+    l2yCutoffDate,
+  };
+}
+
+async function getRevenueGrowthSameDateLegacy(
+  filters: DashboardFilters,
+  branchScope: DashboardBranchScope,
+): Promise<RevenueGrowthComparison> {
+  if (branchScope !== null && !branchScope.length) {
+    return calculateRevenueGrowthFromRows([], filters);
+  }
+
+  const branchQuery: Record<string, string> = branchScope === null
+    ? {}
+    : { branch_id: `in.(${branchScope.join(",")})` };
+  const branches = await fetchAll<BranchLookup>(
+    "t_branch",
+    "branch_id,branch_name,region_id",
+    1000,
+    { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    branchQuery,
+  );
+  const availableBranchIds = branches.map((branch) => branch.branch_id);
+  const regionBranchIds = filters.regionId === undefined
+    ? branchScope === null ? null : availableBranchIds
+    : branches
+        .filter((branch) => branch.region_id === filters.regionId)
+        .map((branch) => branch.branch_id);
+  const selectedBranchId = resolveScopedBranchId(branchScope, filters.branchId);
+  const rows = await fetchTransactions(
+    { branchId: selectedBranchId },
+    regionBranchIds,
+    {
+      useStoredAcademicYear: false,
+      init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    },
+  );
+
+  return calculateRevenueGrowthFromRows(rows.map(toTransactionRow), filters);
+}
+
+/**
+ * Return KPI growth ratios using the latest current-year payment date as the
+ * cutoff, then shift that date by one and two calendar years for LY/L2Y.
+ * The full-year comparison series from get_revenue_dashboard_v2 is kept
+ * untouched because it is also used by the cumulative revenue chart.
+ */
+export async function getRevenueGrowthSameDate(
   filters: DashboardFilters = {},
-): Promise<DashboardData> {
+  branchScope?: DashboardBranchScope,
+): Promise<RevenueGrowthComparison> {
+  const scope = branchScope ?? await getDashboardBranchScope();
   const academicYearOptions = await getRevenueAcademicYearOptions();
   const selectedAcademicYear =
     filters.academicYear && academicYearOptions.some((option) => option.id === filters.academicYear)
@@ -319,7 +545,64 @@ export async function getDashboardData(
   const selectedFilters = {
     ...filters,
     academicYear: selectedAcademicYear,
+    branchId: resolveScopedBranchId(scope, filters.branchId),
   };
+
+  // The RPC is available only to the unrestricted/admin path. A scoped user
+  // must calculate locally so no other branch's revenue can be exposed.
+  if (scope !== null) {
+    return getRevenueGrowthSameDateLegacy(selectedFilters, scope);
+  }
+
+  const response = await supabaseRpcFetch(
+    "get_revenue_growth_same_date",
+    {
+      p_academic_year: selectedFilters.academicYear ?? null,
+      p_region_id: selectedFilters.regionId ?? null,
+      p_branch_id: selectedFilters.branchId ?? null,
+      p_month: selectedFilters.month ?? null,
+      p_from_date: selectedFilters.fromDate ?? null,
+      p_to_date: selectedFilters.toDate ?? null,
+    },
+    { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+  );
+
+  if (response.ok) {
+    return normalizeRevenueGrowthPayload(await response.json());
+  }
+
+  const errorText = await response.text();
+  if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
+    throw new Error(`Revenue growth RPC gagal: ${errorText}`);
+  }
+
+  // Keep local development usable while the migration has not yet been
+  // applied. Once deployed, the RPC path avoids another full-table scan.
+  return getRevenueGrowthSameDateLegacy(selectedFilters, scope);
+}
+
+export async function getDashboardData(
+  filters: DashboardFilters = {},
+  branchScope?: DashboardBranchScope,
+): Promise<DashboardData> {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const academicYearOptions = await getRevenueAcademicYearOptions();
+  const selectedAcademicYear =
+    filters.academicYear && academicYearOptions.some((option) => option.id === filters.academicYear)
+      ? filters.academicYear
+      : academicYearOptions[0]?.id;
+  const selectedFilters = {
+    ...filters,
+    academicYear: selectedAcademicYear,
+    branchId: resolveScopedBranchId(scope, filters.branchId),
+  };
+
+  // The dashboard RPC is intentionally kept as the fast path for admins. A
+  // non-admin uses the legacy server-side aggregation with an explicit branch
+  // scope because the existing RPC is security-definer/service-role backed.
+  if (scope !== null) {
+    return getDashboardDataLegacy(selectedFilters, scope);
+  }
 
   const response = await supabaseRpcFetch(
     "get_revenue_dashboard_v2",
@@ -337,7 +620,7 @@ export async function getDashboardData(
 
   if (response.ok) {
     const payload = await response.json();
-    const dashboard = normalizeDashboardPayload(payload);
+    const dashboard = filterDashboardBranchOptions(normalizeDashboardPayload(payload), scope);
     dashboard.filters.academicYears = academicYearOptions;
     return dashboard;
   }
@@ -347,20 +630,38 @@ export async function getDashboardData(
     throw new Error(`Dashboard RPC gagal: ${errorText}`);
   }
 
-  return getDashboardDataLegacy(selectedFilters);
+  return getDashboardDataLegacy(selectedFilters, scope);
 }
 
-export async function getLatestRevenuePaymentDate() {
+export async function getLatestRevenuePaymentDate(branchScope?: DashboardBranchScope) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const params = new URLSearchParams({
+    select: "payment_date,month,academic_year,branch_id",
+    order: "payment_date.desc",
+    limit: "1",
+  });
+  if (scope !== null) {
+    if (!scope.length) return { latestDate: null, startDate: null };
+    params.set("branch_id", `in.(${scope.join(",")})`);
+  }
   const response = await supabaseRestFetch(
-    "t_revenue_txn?select=payment_date,month,academic_year&order=payment_date.desc&limit=1",
+    `t_revenue_txn?${params.toString()}`,
     { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
   );
   if (!response.ok) throw new Error(`Latest revenue date gagal: ${await response.text()}`);
   const rows = (await response.json()) as Array<{ payment_date?: string; month?: string; academic_year?: string }>;
   const latest = rows[0];
   if (!latest?.payment_date || !latest.academic_year) return { latestDate: latest?.payment_date ?? null, startDate: null };
+  const startParams = new URLSearchParams({
+    select: "payment_date",
+    academic_year: `eq.${latest.academic_year}`,
+    month: "ilike.Jul %",
+    order: "payment_date.asc",
+    limit: "1",
+  });
+  if (scope !== null) startParams.set("branch_id", `in.(${scope.join(",")})`);
   const startResponse = await supabaseRestFetch(
-    `t_revenue_txn?select=payment_date&academic_year=eq.${encodeURIComponent(latest.academic_year)}&month=ilike.Jul%20%25&order=payment_date.asc&limit=1`,
+    `t_revenue_txn?${startParams.toString()}`,
     { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
   );
   if (!startResponse.ok) throw new Error(`Revenue start date gagal: ${await startResponse.text()}`);
@@ -368,7 +669,31 @@ export async function getLatestRevenuePaymentDate() {
   return { latestDate: latest.payment_date, startDate: starts[0]?.payment_date ?? null };
 }
 
-export async function getBulkBuyingGrowth(academicYear: string, fromDate: string, toDate: string) {
+export async function getBulkBuyingGrowth(
+  academicYear: string,
+  fromDate: string,
+  toDate: string,
+  branchScope?: DashboardBranchScope,
+) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return { currentRevenue: 0, previousRevenue: 0 };
+  if (scope !== null) {
+    const rows = await fetchTransactions({}, scope, {
+      useStoredAcademicYear: false,
+      init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    });
+    const previousAcademicYear = previousAcademicYearFrom(academicYear);
+    const previousFromDate = previousYearDate(fromDate);
+    const previousToDate = previousYearDate(toDate);
+    return {
+      currentRevenue: rows
+        .filter((row) => row.is_bulkbuying && academicYearFromMonth(row.month) === academicYear && row.payment_date >= fromDate && row.payment_date <= toDate)
+        .reduce((sum, row) => sum + parseRevenue(row.revenue), 0),
+      previousRevenue: rows
+        .filter((row) => row.is_bulkbuying && previousAcademicYear !== null && academicYearFromMonth(row.month) === previousAcademicYear && (!previousFromDate || row.payment_date >= previousFromDate) && (!previousToDate || row.payment_date <= previousToDate))
+        .reduce((sum, row) => sum + parseRevenue(row.revenue), 0),
+    };
+  }
   const response = await supabaseRpcFetch("get_bulk_buying_growth", {
     p_academic_year: academicYear, p_from_date: fromDate, p_to_date: toDate,
   }, { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
@@ -382,7 +707,41 @@ export async function getBranchRevenuePerformance(
   regionId?: number,
   branchId?: number,
   month?: string,
+  branchScope?: DashboardBranchScope,
 ) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const selectedBranchId = resolveScopedBranchId(scope, branchId);
+  if (scope !== null) {
+    if (!scope.length) return [];
+    const branchQuery: Record<string, string> = scope.length ? { branch_id: `in.(${scope.join(",")})` } : {};
+    const [branches, rows, annualTargets, monthlyTargets] = await Promise.all([
+      fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
+      fetchTransactions({ academicYear }, scope, { useStoredAcademicYear: false, init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } } }),
+      fetchAll<RevenueAnnualTargetLookup>("t_revenue_annual_target", "academic_year,branch_id,target_revenue", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
+      fetchAll<RevenueMonthlyTargetLookup>("t_revenue_monthly_target", "academic_year,branch_id,month_number,target_revenue", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
+    ]);
+    const selectedRows = rows
+      .map(toTransactionRow)
+      .filter((row) => academicYearFromMonth(row.month) === academicYear)
+      .filter((row) => !month || monthLabel(row.month) === month);
+    const selectedBranches = branches.filter((branch) =>
+      (regionId === undefined || branch.region_id === regionId) &&
+      (selectedBranchId === undefined || branch.branch_id === selectedBranchId),
+    );
+    const revenueByBranch = new Map<number, number>();
+    for (const row of selectedRows) {
+      if (row.branchId !== null) revenueByBranch.set(row.branchId, (revenueByBranch.get(row.branchId) ?? 0) + row.revenue);
+    }
+    const targetByBranch = new Map<number, number>();
+    for (const target of (month ? monthlyTargets.filter((item) => item.month_number === academicMonthNumber(month)) : annualTargets)) {
+      if (target.academic_year !== academicYear) continue;
+      targetByBranch.set(target.branch_id, (targetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue));
+    }
+    return selectedBranches
+      .filter((branch) => revenueByBranch.has(branch.branch_id))
+      .map((branch) => ({ name: branch.branch_name, revenue: revenueByBranch.get(branch.branch_id) ?? 0, target: targetByBranch.get(branch.branch_id) ?? 0 }))
+      .sort((a, b) => b.revenue - a.revenue || a.name.localeCompare(b.name));
+  }
   const response = await supabaseRpcFetch("get_branch_revenue_performance", {
     p_academic_year: academicYear,
     p_region_id: regionId ?? null,
@@ -393,12 +752,17 @@ export async function getBranchRevenuePerformance(
   return (await response.json()) as DashboardData["branchRevenuePerformance"];
 }
 
-export async function getBranchRevenueSummary(academicYear: string) {
+export async function getBranchRevenueSummary(
+  academicYear: string,
+  branchScope?: DashboardBranchScope,
+) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return [];
   const [branches, rows] = await Promise.all([
     fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id", 1000, {
       next: { revalidate: 30, tags: ["revenue-dashboard"] },
-    }),
-    fetchTransactions({}, null, {
+    }, scope === null ? {} : { branch_id: `in.(${scope.join(",")})` } as Record<string, string>),
+    fetchTransactions({}, scope, {
       useStoredAcademicYear: false,
       init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
     }),
@@ -572,27 +936,36 @@ function normalizeDashboardPayload(payload: Record<string, unknown>): DashboardD
 
 async function getDashboardDataLegacy(
   filters: DashboardFilters = {},
+  branchScope: DashboardBranchScope = null,
 ): Promise<DashboardData> {
-  const [grades, products, agents, branches, regions, academicYears] = await Promise.all([
+  const [grades, products, agents, branches, regions, academicYears, annualTargets, monthlyTargets] = await Promise.all([
     fetchAll<GradeLookup>("t_grade", "grade_id,grade"),
     fetchAll<ProductLookup>("t_revenue_products", "product_id,product_code"),
     fetchAll<AgentLookup>("t_agent", "agent_id,agent_name"),
     fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id"),
     fetchAll<RegionLookup>("t_region", "region_id,region_name"),
     fetchAll<{ academic_year: string }>("t_academic_year", "academic_year"),
+    fetchAll<RevenueAnnualTargetLookup>("t_revenue_annual_target", "academic_year,branch_id,target_revenue"),
+    fetchAll<RevenueMonthlyTargetLookup>("t_revenue_monthly_target", "academic_year,branch_id,month_number,target_revenue"),
   ]);
+
+  const availableBranches = branchScope === null
+    ? branches
+    : branches.filter((branch) => branchScope.includes(branch.branch_id));
+  const availableBranchIds = availableBranches.map((branch) => branch.branch_id);
 
   const regionBranchIds =
     filters.regionId === undefined
-      ? null
+      ? availableBranches.length === branches.length && branchScope === null ? null : availableBranchIds
       : branches
-          .filter((branch) => branch.region_id === filters.regionId)
+          .filter((branch) => branch.region_id === filters.regionId && availableBranchIds.includes(branch.branch_id))
           .map((branch) => branch.branch_id);
   const transactionRows = await fetchTransactions(filters, regionBranchIds, {
     useStoredAcademicYear: false,
   });
   const allAcademicYears = academicYears.map((row) => row.academic_year);
   const previousYear = previousAcademicYear(filters.academicYear, allAcademicYears);
+  const lastTwoYear = previousAcademicYear(previousYear ?? undefined, allAcademicYears);
   const comparisonRows = filters.academicYear
     ? await fetchTransactions(
         {
@@ -616,6 +989,18 @@ async function getDashboardDataLegacy(
         { useStoredAcademicYear: false },
       )
     : [];
+  const lastTwoRows = filters.academicYear && lastTwoYear
+    ? await fetchTransactions(
+        {
+          ...filters,
+          academicYear: lastTwoYear,
+          fromDate: filters.fromDate ? previousYearDate(previousYearDate(filters.fromDate)) : undefined,
+          toDate: filters.toDate ? previousYearDate(previousYearDate(filters.toDate)) : undefined,
+        },
+        regionBranchIds,
+        { useStoredAcademicYear: false },
+      )
+    : [];
   const comparisonEnabled = Boolean(
     filters.academicYear || filters.fromDate || filters.toDate,
   );
@@ -626,6 +1011,9 @@ async function getDashboardDataLegacy(
   const previousRows = comparisonRows
     .map(toTransactionRow)
     .filter((row) => !previousYear || academicYearFromMonth(row.month) === previousYear);
+  const lastTwoRowsForComparison = lastTwoRows
+    .map(toTransactionRow)
+    .filter((row) => !lastTwoYear || academicYearFromMonth(row.month) === lastTwoYear);
   const productById = new Map(products.map((row) => [row.product_id, row.product_code]));
   const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
   const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
@@ -642,6 +1030,26 @@ async function getDashboardDataLegacy(
       row.region_id === null ? null : regionById.get(row.region_id),
     ]),
   );
+  const targetBranchAllowed = (branchId: number) =>
+    (regionBranchIds === null || regionBranchIds.includes(branchId)) &&
+    (filters.branchId === undefined || filters.branchId === branchId);
+  const annualTargetByBranch = new Map<number, number>();
+  for (const target of annualTargets) {
+    if (target.academic_year !== filters.academicYear || !targetBranchAllowed(target.branch_id)) continue;
+    annualTargetByBranch.set(
+      target.branch_id,
+      (annualTargetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue),
+    );
+  }
+  const monthlyTargetByMonth = new Map<number, number>();
+  for (const target of monthlyTargets) {
+    if (target.academic_year !== filters.academicYear || !targetBranchAllowed(target.branch_id)) continue;
+    monthlyTargetByMonth.set(
+      target.month_number,
+      (monthlyTargetByMonth.get(target.month_number) ?? 0) + parseRevenue(target.target_revenue),
+    );
+  }
+  const targetAnnualRevenue = Array.from(annualTargetByBranch.values()).reduce((sum, value) => sum + value, 0);
   const invoices = new Set(rows.map((row) => row.invoice).filter(Boolean));
   const branchIds = new Set(rows.flatMap((row) => [row.branchId]).filter((id): id is number => id !== null));
   const agentIds = new Set(rows.map((row) => row.agentId).filter((id): id is number => id !== null));
@@ -673,6 +1081,7 @@ async function getDashboardDataLegacy(
 
   const currentByMonth = new Map<string, SummaryPoint>();
   const previousByMonth = new Map<string, SummaryPoint>();
+  const lastTwoByMonth = new Map<string, SummaryPoint>();
   for (const row of rows) {
     const label = monthLabel(row.month);
     const current = currentByMonth.get(label) ?? {
@@ -695,8 +1104,19 @@ async function getDashboardDataLegacy(
     current.transactions += 1;
     previousByMonth.set(label, current);
   }
+  for (const row of lastTwoRowsForComparison) {
+    const label = monthLabel(row.month);
+    const current = lastTwoByMonth.get(label) ?? {
+      name: label,
+      revenue: 0,
+      transactions: 0,
+    };
+    current.revenue += row.revenue;
+    current.transactions += 1;
+    lastTwoByMonth.set(label, current);
+  }
 
-  const monthKeys = new Set([...currentByMonth.keys(), ...previousByMonth.keys()]);
+  const monthKeys = new Set([...currentByMonth.keys(), ...previousByMonth.keys(), ...lastTwoByMonth.keys()]);
   const monthlyRevenueComparison: MonthlyComparisonPoint[] = Array.from(monthKeys)
     .sort(
       (a, b) =>
@@ -712,14 +1132,16 @@ async function getDashboardDataLegacy(
       previousTransactions: previousYear
         ? previousByMonth.get(month)?.transactions ?? 0
         : null,
-      lastTwoYearsRevenue: null,
-      lastTwoYearsCumulativeRevenue: null,
-      targetRevenue: null,
-      targetCumulativeRevenue: null,
+      lastTwoYearsRevenue: lastTwoYear ? lastTwoByMonth.get(month)?.revenue ?? 0 : null,
+      lastTwoYearsCumulativeRevenue: 0,
+      targetRevenue: monthlyTargetByMonth.get(academicMonthNumber(month) ?? -1) ?? 0,
+      targetCumulativeRevenue: 0,
     }));
 
   let currentCumulativeRevenue = 0;
   let previousCumulativeRevenue = 0;
+  let lastTwoCumulativeRevenue = 0;
+  let targetCumulativeRevenue = 0;
   for (const row of monthlyRevenueComparison) {
     currentCumulativeRevenue += row.currentRevenue;
     row.currentCumulativeRevenue = currentCumulativeRevenue;
@@ -728,6 +1150,12 @@ async function getDashboardDataLegacy(
       previousCumulativeRevenue += row.previousRevenue;
       row.previousCumulativeRevenue = previousCumulativeRevenue;
     }
+    if (row.lastTwoYearsRevenue !== null) {
+      lastTwoCumulativeRevenue += row.lastTwoYearsRevenue;
+      row.lastTwoYearsCumulativeRevenue = lastTwoCumulativeRevenue;
+    }
+    targetCumulativeRevenue += row.targetRevenue ?? 0;
+    row.targetCumulativeRevenue = targetCumulativeRevenue;
   }
 
   const agentPerformanceMap = new Map<number, AgentPerformance>();
@@ -758,9 +1186,10 @@ async function getDashboardDataLegacy(
         .sort((a, b) => b.academic_year.localeCompare(a.academic_year))
         .map((row): FilterOption => ({ id: row.academic_year, label: row.academic_year })),
       regions: regions
+        .filter((row) => branchScope === null || availableBranches.some((branch) => branch.region_id === row.region_id))
         .sort((a, b) => a.region_name.localeCompare(b.region_name))
         .map((row): FilterOption => ({ id: String(row.region_id), label: row.region_name })),
-      branches: branches
+      branches: availableBranches
         .filter((row) => row.region_id !== null)
         .sort((a, b) => a.branch_name.localeCompare(b.branch_name))
         .map(
@@ -785,11 +1214,15 @@ async function getDashboardDataLegacy(
       averageOrderValue: rows.length ? totalRevenue / rows.length : 0,
       nonBulkRevenue,
       nonBulkNewTransactions,
-      targetAnnualRevenue: 0,
-      achievement: null,
-      varianceToTarget: 0,
-      growthVsLy: null,
-      growthVsL2y: null,
+      targetAnnualRevenue,
+      achievement: targetAnnualRevenue ? totalRevenue / targetAnnualRevenue : null,
+      varianceToTarget: totalRevenue - targetAnnualRevenue,
+      growthVsLy: previousRows.length
+        ? totalRevenue / previousRows.reduce((sum, row) => sum + row.revenue, 0)
+        : null,
+      growthVsL2y: lastTwoRowsForComparison.length
+        ? totalRevenue / lastTwoRowsForComparison.reduce((sum, row) => sum + row.revenue, 0)
+        : null,
     },
     monthlyRevenue: Array.from(monthlyMap.values())
       .sort((a, b) => monthSortValue(a.name) - monthSortValue(b.name))
@@ -813,7 +1246,7 @@ async function getDashboardDataLegacy(
       (row) => labelForId(row.branchId, branchById, "Branch"),
       12,
     ),
-    branchRevenuePerformance: summarizeBranchRevenuePerformance(rows, branches, 0),
+    branchRevenuePerformance: summarizeBranchRevenuePerformance(rows, availableBranches, annualTargetByBranch),
     productRevenue: summarize(
       rows,
       (row) => labelForId(row.productId, productById, "Product"),

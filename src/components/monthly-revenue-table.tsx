@@ -1,11 +1,11 @@
 "use client";
 
 import {
+  Area,
   Bar,
   CartesianGrid,
   ComposedChart,
   Legend,
-  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -185,6 +185,24 @@ export function MonthlyRevenueTable({
       <div className="mt-4 h-80">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart data={chartRows} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
+            <defs>
+              <linearGradient id="monthly-revenue-current-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-primary)" stopOpacity={0.35} />
+                <stop offset="95%" stopColor="var(--chart-primary)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="monthly-revenue-ly-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-secondary)" stopOpacity={0.2} />
+                <stop offset="95%" stopColor="var(--chart-secondary)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="monthly-revenue-l2y-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-axis-muted)" stopOpacity={0.12} />
+                <stop offset="95%" stopColor="var(--chart-axis-muted)" stopOpacity={0} />
+              </linearGradient>
+              <linearGradient id="monthly-revenue-target-gradient" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor="var(--chart-fifth)" stopOpacity={0.08} />
+                <stop offset="95%" stopColor="var(--chart-fifth)" stopOpacity={0} />
+              </linearGradient>
+            </defs>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
             <XAxis
               dataKey="month"
@@ -214,12 +232,13 @@ export function MonthlyRevenueTable({
                 <Bar dataKey={currentDataKey} name={currentAcademicYear ?? "Revenue"} fill="var(--chart-primary)" radius={[4, 4, 0, 0]} />
               </>
             ) : (
-              <Line
+              <Area
                 type="monotone"
                 dataKey={currentDataKey}
                 name={currentAcademicYear ?? "Revenue"}
                 stroke="var(--chart-primary)"
                 strokeWidth={3}
+                fill="url(#monthly-revenue-current-gradient)"
                 dot={{ r: 3, fill: "var(--chart-primary)" }}
                 activeDot={{ r: 5 }}
               />
@@ -228,12 +247,13 @@ export function MonthlyRevenueTable({
               monthlyBars && !cumulative ? (
                 <Bar dataKey={previousDataKey} name="LY" fill="var(--chart-secondary)" radius={[4, 4, 0, 0]} />
               ) : (
-                <Line
+                <Area
                   type="monotone"
                   dataKey={previousDataKey}
                   name="LY"
                   stroke="var(--chart-secondary)"
                   strokeWidth={2.5}
+                  fill="url(#monthly-revenue-ly-gradient)"
                   dot={{ r: 3, fill: "var(--chart-secondary)" }}
                   activeDot={{ r: 5 }}
                 />
@@ -243,26 +263,28 @@ export function MonthlyRevenueTable({
               monthlyBars && !cumulative ? (
                 <Bar dataKey={lastTwoYearsDataKey} name="L2Y" fill="var(--chart-axis-muted)" radius={[4, 4, 0, 0]} />
               ) : (
-                <Line
+                <Area
                   type="monotone"
                   dataKey={lastTwoYearsDataKey}
                   name="L2Y"
                   stroke="var(--chart-axis-muted)"
                   strokeWidth={2}
                   strokeDasharray="5 5"
+                  fill="url(#monthly-revenue-l2y-gradient)"
                   dot={{ r: 2, fill: "var(--chart-axis-muted)" }}
                   activeDot={{ r: 4 }}
                 />
               )
             ) : null}
             {targetEnabled ? (
-              <Line
+              <Area
                 type="monotone"
                 dataKey={targetDataKey}
                 name="Target"
                 stroke="var(--chart-fifth)"
                 strokeWidth={2}
                 strokeDasharray="8 5"
+                fill="url(#monthly-revenue-target-gradient)"
                 dot={{ r: 2, fill: "var(--chart-fifth)" }}
                 activeDot={{ r: 4 }}
               />

@@ -33,7 +33,7 @@ export default async function LoginPage({
           </div>
         </div>
         <p className="mt-6 text-sm text-slate-600">
-          Masuk menggunakan akun yang sudah terdaftar di Supabase Auth.
+          Sign in with an account registered in Supabase Auth.
         </p>
 
         {params.error ? (
@@ -65,7 +65,7 @@ export default async function LoginPage({
             type="submit"
             className="mt-2 inline-flex h-10 items-center justify-center rounded-md bg-teal-700 px-4 text-sm font-semibold text-white transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
           >
-            Masuk
+            Sign in
           </button>
         </form>
       </section>

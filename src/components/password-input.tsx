@@ -32,8 +32,8 @@ export function PasswordInput({
         type="button"
         onClick={() => setVisible((current) => !current)}
         className="absolute inset-y-0 right-0 inline-flex w-10 items-center justify-center text-slate-400 transition hover:text-slate-700 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-teal-600"
-        aria-label={visible ? "Sembunyikan password" : "Tampilkan password"}
-        title={visible ? "Sembunyikan password" : "Tampilkan password"}
+        aria-label={visible ? "Hide password" : "Show password"}
+        title={visible ? "Hide password" : "Show password"}
       >
         {visible ? (
           <EyeOff className="h-4 w-4" aria-hidden />

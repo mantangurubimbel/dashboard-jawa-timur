@@ -17,8 +17,8 @@ type SchoolAccount = {
 
 export function SchoolAccountsTable({
   rows,
-  title = "Kontributor Total Revenue",
-  subtitle = "Ranking sekolah dengan penjualan retail & bulk buying",
+  title = "Total Revenue Contributors",
+  subtitle = "School ranking by retail & bulk buying sales",
 }: {
   rows: SchoolAccount[];
   title?: string;
@@ -78,8 +78,8 @@ export function SchoolAccountsTable({
           <tr>
               <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">Rank</th>
             <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">NPSN</th>
-            <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">Sekolah</th>
-            <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">Kota/Kabupaten</th>
+            <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">School</th>
+            <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold">City/Regency</th>
             <th className="sticky top-0 z-10 bg-slate-100 px-3 py-2 text-right font-semibold">Revenue</th>
           </tr>
         </thead>
@@ -120,7 +120,7 @@ export function SchoolAccountsTable({
           {!visibleRows.length ? (
             <tr>
               <td colSpan={5} className="px-3 py-10 text-center text-slate-500">
-                Belum ada data sekolah.
+                No school data available.
               </td>
             </tr>
           ) : null}
@@ -130,8 +130,8 @@ export function SchoolAccountsTable({
       <div className="flex items-center justify-between border-t border-slate-200 px-3 py-2 text-xs text-slate-500">
         <span>
           {rows.length
-            ? `${(page - 1) * rowsPerPage + 1}-${Math.min(page * rowsPerPage, rows.length)} dari ${rows.length}`
-            : "0 data"}
+            ? `${(page - 1) * rowsPerPage + 1}-${Math.min(page * rowsPerPage, rows.length)} of ${rows.length}`
+            : "0 rows"}
         </span>
         <div className="flex items-center gap-1">
           <button
@@ -142,8 +142,8 @@ export function SchoolAccountsTable({
             }}
             disabled={page === 1}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Halaman sebelumnya"
-            title="Halaman sebelumnya"
+            aria-label="Previous page"
+            title="Previous page"
           >
             <ChevronLeft className="h-4 w-4" aria-hidden />
           </button>
@@ -158,8 +158,8 @@ export function SchoolAccountsTable({
             }}
             disabled={page === totalPages}
             className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-slate-300 text-slate-600 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-40"
-            aria-label="Halaman berikutnya"
-            title="Halaman berikutnya"
+            aria-label="Next page"
+            title="Next page"
           >
             <ChevronRight className="h-4 w-4" aria-hidden />
           </button>
