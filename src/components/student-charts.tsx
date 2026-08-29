@@ -41,12 +41,12 @@ function TooltipBox({
       <p className="font-semibold text-slate-950">{point.name ?? point.period}</p>
       <div className="mt-3 space-y-1">
         <div className="flex items-center justify-between gap-4 font-semibold text-teal-700">
-          <span>{isComparisonPoint ? "Jumsis" : "Student"}</span>
+          <span>{isComparisonPoint ? "Student Count" : "Student"}</span>
           <span className="text-right">{formatNumber(point.students)}</span>
         </div>
         {point.cumulativeStudents !== undefined ? (
           <div className="flex items-center justify-between gap-4 text-xs text-blue-700">
-            <span>Kumulatif</span>
+            <span>Cumulative</span>
             <span className="text-right">{formatNumber(point.cumulativeStudents)}</span>
           </div>
         ) : null}
@@ -73,7 +73,7 @@ function TooltipBox({
 
 export function StudentTrendChart({
   data,
-  subtitle = "Jumlah student berdasarkan payment date.",
+  subtitle = "Student count by payment date.",
   showCumulative = false,
 }: {
   data: { period: string; students: number }[];
@@ -96,7 +96,7 @@ export function StudentTrendChart({
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-      <h2 className="text-base font-semibold text-slate-950">Student per Bulan</h2>
+      <h2 className="text-base font-semibold text-slate-950">Students by Month</h2>
       <p className="mt-1 text-sm text-slate-500">{subtitle}</p>
       <div className="mt-4 h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -119,7 +119,7 @@ export function StudentTrendChart({
             <Area
               type="monotone"
               dataKey="students"
-              name="Jumlah per Bulan"
+              name="Students by Month"
               stroke="var(--chart-primary)"
               strokeWidth={3}
               fill="url(#student-trend-area-gradient)"
@@ -130,7 +130,7 @@ export function StudentTrendChart({
               <Area
                 type="monotone"
                 dataKey="cumulativeStudents"
-                name="Kumulatif"
+                name="Cumulative"
                 stroke="var(--chart-secondary)"
                 strokeWidth={2.5}
                 fill="url(#student-trend-cumulative-gradient)"

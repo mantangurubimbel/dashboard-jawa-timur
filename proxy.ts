@@ -47,7 +47,7 @@ export async function proxy(request: NextRequest) {
   if (!profile?.access_revenue_dashboard) {
     await supabase.auth.signOut();
     const url = new URL("/login", request.url);
-    url.searchParams.set("error", "Akun belum memiliki akses ke dashboard revenue.");
+    url.searchParams.set("error", "This account does not have access to the Revenue Dashboard.");
     return NextResponse.redirect(url);
   }
 

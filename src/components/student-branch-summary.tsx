@@ -22,7 +22,7 @@ export function StudentBranchSummary({ rows }: { rows: BranchSummaryRow[] }) {
         <table className="w-full min-w-[980px] border-collapse text-left text-sm">
           <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500">
           <tr>
-            {["Branch", "Students", "vs LY (same period)", "vs L2Y (same period)", "Students LY (same period)", "Students LY (end of academic year)", "Students L2Y (same period)", "Students L2Y (end of academic year)"].map((label, index) => (
+            {["Branch", "Students", "vs LY (SP)", "vs L2Y (SP)", "Students LY (SP)", "Students LY (EOAY)", "Students L2Y (SP)", "Students L2Y (EOAY)"].map((label, index) => (
               <th key={label} className={`px-3 py-2 font-semibold ${index > 0 ? "text-center" : ""} ${[1, 4, 6].includes(index) ? "border-l border-slate-300" : ""}`}>
                 {label}
               </th>

@@ -66,7 +66,7 @@ export default async function SettingsPage() {
         <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <h2 className="text-base font-semibold text-slate-950">User & Access</h2>
           <p className="mt-1 text-sm leading-6 text-slate-600">
-            Manage each user's Revenue Dashboard and branch access using the table below.
+            Manage each user&apos;s Revenue Dashboard and branch access using the table below.
           </p>
         </div>
       </section>

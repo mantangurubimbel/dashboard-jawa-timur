@@ -62,8 +62,8 @@ export default async function StudentsPage({
         <StudentTrendChart data={data.monthlyStudents} />
       </section>
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
-        <StudentRankingChart title="Student per Grade" data={data.gradeStudents} orientation="vertical" />
-        <StudentRankingChart title="Student per Level" data={data.levelStudents} orientation="vertical" />
+        <StudentRankingChart title="Students by Grade" data={data.gradeStudents} orientation="vertical" />
+        <StudentRankingChart title="Students by Level" data={data.levelStudents} orientation="vertical" />
       </section>
       <StudentBranchSummary rows={data.branchSummary} />
       <StudentWeeklyTable

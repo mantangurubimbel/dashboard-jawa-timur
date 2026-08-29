@@ -31,8 +31,8 @@ function BranchAccessEditor({ user, branchOptions }: { user: AdminUser; branchOp
         </label>
         <p className="text-xs leading-5 text-slate-500">
           {availableBranches.length
-            ? "Pilih satu atau beberapa branch dari dropdown."
-            : "Semua branch sudah ditambahkan."}
+            ? "Select one or more branches from the dropdown."
+            : "All branches have already been added."}
         </p>
         <div className="flex items-center gap-2">
           <PendingSubmitButton
@@ -55,7 +55,7 @@ function BranchAccessEditor({ user, branchOptions }: { user: AdminUser; branchOp
                 <input name="branch_id" type="hidden" value={branch.id} />
                 <PendingSubmitButton
                   className="inline-flex max-w-full items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700 disabled:cursor-wait disabled:opacity-60"
-                  title={`Hapus akses ${branch.name}`}
+                  title={`Remove access to ${branch.name}`}
                 >
                   <span className="max-w-52 truncate">{branch.name}</span>
                   <X className="h-3 w-3 shrink-0" aria-hidden />
@@ -73,7 +73,7 @@ function BranchAccessEditor({ user, branchOptions }: { user: AdminUser; branchOp
         <div>
           <p className="text-xs font-bold text-slate-600">Is Active</p>
           <p className="mt-1 text-xs text-slate-500">
-            {user.accessRevenue ? "User dapat mengakses Revenue Dashboard." : "User tidak dapat mengakses Revenue Dashboard."}
+            {user.accessRevenue ? "This user can access the Revenue Dashboard." : "This user cannot access the Revenue Dashboard."}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -83,7 +83,7 @@ function BranchAccessEditor({ user, branchOptions }: { user: AdminUser; branchOp
             {user.accessRevenue ? "Active" : "Disabled"}
           </span>
           <PendingSubmitButton
-            aria-label={`${user.accessRevenue ? "Disable" : "Enable"} Revenue Dashboard untuk ${user.name || "user"}`}
+            aria-label={`${user.accessRevenue ? "Disable" : "Enable"} Revenue Dashboard for ${user.name || "user"}`}
             aria-pressed={user.accessRevenue}
             className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full p-0.5 transition focus:outline-none focus:ring-2 focus:ring-teal-100 disabled:cursor-wait disabled:opacity-70 ${user.accessRevenue ? "bg-teal-700" : "bg-slate-100"}`}
             title={user.accessRevenue ? "Disable Revenue Dashboard" : "Enable Revenue Dashboard"}
@@ -113,10 +113,10 @@ export function AdminUserTable({
     <section className="flex h-[calc(100vh-22rem)] min-h-[360px] min-w-0 flex-col overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-col gap-2 border-b border-slate-200 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-base font-semibold text-slate-950">Daftar User</h2>
-          <p className="mt-1 text-sm text-slate-500">Kelola branch yang dapat diakses dan status Revenue Dashboard setiap user.</p>
+          <h2 className="text-base font-semibold text-slate-950">User List</h2>
+          <p className="mt-1 text-sm text-slate-500">Manage each user&apos;s accessible branches and Revenue Dashboard status.</p>
         </div>
-        <span className="text-xs font-medium text-slate-500">{users.length} user</span>
+        <span className="text-xs font-medium text-slate-500">{users.length} users</span>
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto p-4">
@@ -128,7 +128,7 @@ export function AdminUserTable({
                   <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
                   <p className="truncate text-sm font-bold text-slate-800">{user.name || "-"}</p>
                 </div>
-                <p className="truncate text-xs font-semibold text-slate-500">{user.position || "Belum ada posisi"}</p>
+                <p className="truncate text-xs font-semibold text-slate-500">{user.position || "No position assigned"}</p>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-center text-xs font-bold text-teal-700">
                   {user.branches.length} branch
                 </span>
@@ -142,14 +142,14 @@ export function AdminUserTable({
           ))}
           {!users.length ? (
             <p className="rounded-md border border-slate-200 bg-slate-50 px-4 py-8 text-center text-sm text-slate-500">
-              Belum ada user yang memenuhi kriteria.
+              No users match the criteria.
             </p>
           ) : null}
         </div>
       </div>
 
       <div className="border-t border-slate-200 px-5 py-3 text-xs text-slate-500">
-        Hanya user dengan user grade 2 atau lebih yang ditampilkan.
+        Only users with user grade 2 or higher are shown.
       </div>
     </section>
   );

@@ -81,15 +81,15 @@ export function transformRevenueTargetCsv(
     const month = normalize(record.month ?? record.Month);
 
     if (!academicYears.has(academicYear)) {
-      errors.push({ row: rowNumber, message: `Academic year tidak ditemukan: ${academicYear}` });
+      errors.push({ row: rowNumber, message: `Academic year not found: ${academicYear}` });
       return;
     }
     if (!branchId || !branchIds.has(branchId)) {
-      errors.push({ row: rowNumber, message: "Branch ID/name tidak ditemukan." });
+      errors.push({ row: rowNumber, message: "Branch ID/name not found." });
       return;
     }
     if (targetRevenue === null) {
-      errors.push({ row: rowNumber, message: "target_revenue harus integer >= 0." });
+      errors.push({ row: rowNumber, message: "target_revenue must be an integer >= 0." });
       return;
     }
 
@@ -98,13 +98,13 @@ export function transformRevenueTargetCsv(
         ? `${academicYear}|${branchId}`
         : `${academicYear}|${branchId}|${month.toLowerCase()}`;
     if (seen.has(key)) {
-      errors.push({ row: rowNumber, message: `Duplikat target: ${key}` });
+      errors.push({ row: rowNumber, message: `Duplicate target: ${key}` });
       return;
     }
     seen.add(key);
 
     if (kind === "monthly" && academicMonthNumber(month) === null) {
-      errors.push({ row: rowNumber, message: `Bulan tidak valid: ${month}` });
+      errors.push({ row: rowNumber, message: `Invalid month: ${month}` });
       return;
     }
 
@@ -121,7 +121,7 @@ export function transformRevenueTargetCsv(
     inputRows: records.length,
     outputRows: rows.length,
     invalidRows: errors.length,
-    duplicateRows: errors.filter((error) => error.message.startsWith("Duplikat")).length,
+    duplicateRows: errors.filter((error) => error.message.startsWith("Duplicate")).length,
     errors: errors.slice(0, 50),
   };
 

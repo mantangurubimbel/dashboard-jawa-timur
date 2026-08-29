@@ -1,33 +1,25 @@
 import { AppShell } from "@/components/app-shell";
 import { createSupabaseAuthServerClient } from "@/lib/supabase-auth";
 import { redirect } from "next/navigation";
-import { isAdminEmail } from "@/lib/admin-auth";
-import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
+import { getDashboardUserContext } from "@/lib/dashboard-access";
 
 export default async function DashboardLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const supabase = await createSupabaseAuthServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const context = await getDashboardUserContext();
+  if (!context.user) {
     redirect("/login");
   }
-  const { data: profile } = await createSupabaseServiceRoleClient()
-    .from("t_app_user")
-    .select("name,access_revenue_dashboard")
-    .eq("id", user.id)
-    .maybeSingle();
-  if (!profile?.access_revenue_dashboard && !isAdminEmail(user.email ?? "")) {
+  if (!context.hasDashboardAccess) {
+    const supabase = await createSupabaseAuthServerClient();
     await supabase.auth.signOut();
-    redirect("/login?error=Akun%20tidak%20memiliki%20akses%20ke%20dashboard%20revenue.");
+    redirect("/login?error=This%20account%20does%20not%20have%20access%20to%20the%20Revenue%20Dashboard.");
   }
 
   return (
     <AppShell
-      userName={profile?.name}
-      email={user?.email}
+      userName={context.profile?.name ?? undefined}
+      email={context.user.email}
     >
       {children}
     </AppShell>

@@ -150,7 +150,7 @@ function ChartTooltip({
     <div className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm shadow-lg">
       <p className="font-medium text-slate-950">{point.name}</p>
       <p className="text-slate-600">{formatCurrency(point.revenue)}</p>
-      <p className="text-slate-500">{formatNumber(point.transactions)} transaksi</p>
+      <p className="text-slate-500">{formatNumber(point.transactions)} transactions</p>
       {typeof share === "number" ? <p className="text-slate-500">{formatPercent(share)}</p> : null}
     </div>
   );
@@ -180,7 +180,7 @@ function PieRevenueTooltip({
       </div>
       <div className="mt-3 space-y-1 border-t border-slate-100 pt-2 text-xs">
         <div className="flex items-center justify-between gap-4">
-          <span className="text-slate-600">Transaksi</span>
+          <span className="text-slate-600">Transactions</span>
           <span className="whitespace-nowrap text-right font-semibold text-slate-700">
             {formatNumber(point.transactions)}
           </span>
@@ -202,8 +202,8 @@ export function MonthlyRevenueChart({ data }: { data: MonthlyPoint[] }) {
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-slate-950">Revenue Bulanan</h2>
-        <p className="text-sm text-slate-500">Tren transaksi dari Juli 2024 sampai Agustus 2026.</p>
+        <h2 className="text-base font-semibold text-slate-950">Monthly Revenue</h2>
+        <p className="text-sm text-slate-500">Transaction trend from July 2024 through August 2026.</p>
       </div>
       <div className="h-72">
         <ResponsiveContainer width="100%" height="100%">
@@ -456,7 +456,7 @@ export function ProductRevenueChart({
           </ResponsiveContainer>
         ) : (
           <div className="flex h-full items-center justify-center text-sm text-slate-500">
-            Belum ada data product.
+            No product data available.
           </div>
         )}
       </div>
@@ -534,17 +534,17 @@ function RegionalRevenueTooltip({
       </div>
       <div className="mt-3 space-y-1 text-xs">
         <div className="flex items-center justify-between gap-4 text-teal-700">
-          <span>Revenue retail</span>
+          <span>Retail revenue</span>
           <span className="text-right">{formatCurrency(point.nonBulkRevenue)}</span>
         </div>
         <div className="flex items-center justify-between gap-4 text-slate-600">
-          <span>Transaksi retail</span>
+          <span>Retail transactions</span>
           <span className="text-right">{formatNumber(point.nonBulkTransactions)}</span>
         </div>
       </div>
       <div className="mt-3 space-y-1 text-xs">
         <div className="flex items-center justify-between gap-4 text-blue-700">
-          <span>Revenue bulk buying</span>
+          <span>Bulk buying revenue</span>
           <span className="text-right">{formatCurrency(point.bulkRevenue)}</span>
         </div>
       </div>
@@ -556,8 +556,8 @@ export function RegionalRevenueSourceChart({ data }: { data: RevenueSourcePoint[
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4">
-        <h2 className="text-base font-semibold text-slate-950">Revenue by Regional</h2>
-        <p className="text-sm text-slate-500">Revenue retail dan bulk buying per regional.</p>
+        <h2 className="text-base font-semibold text-slate-950">Revenue by Region</h2>
+        <p className="text-sm text-slate-500">Retail and bulk buying revenue by region.</p>
       </div>
       <div className="h-80">
         <ResponsiveContainer width="100%" height="100%">

@@ -82,7 +82,7 @@ function ComparisonTooltip({
     <div className="w-72 rounded-md border border-slate-200 bg-white px-3 py-3 text-sm shadow-lg">
       <p className="font-semibold text-slate-950">{row.month}</p>
       <div className="mt-3 flex items-center justify-between gap-4 font-semibold text-teal-700">
-        <span>Revenue {currentAcademicYear ?? "aktif"}</span>
+        <span>Revenue {currentAcademicYear ?? "Active period"}</span>
         <span className="text-right">{formatCurrency(currentRevenue)}</span>
       </div>
       <div className="mt-3 space-y-1 text-xs">
@@ -167,17 +167,17 @@ export function MonthlyRevenueTable({
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-slate-950">
-            {title ?? (cumulative ? "Revenue Kumulatif" : "Revenue Bulanan")}
+            {title ?? (cumulative ? "Cumulative Revenue" : "Monthly Revenue")}
           </h2>
           <p className="mt-1 text-sm text-slate-500">
             {description ?? (comparisonEnabled
-              ? `${cumulative ? "Kumulatif" : "Bulanan"} revenue ${currentAcademicYear} vs LY.`
-              : `${cumulative ? "Kumulatif" : "Bulanan"} revenue berdasarkan filter aktif.`)}
+              ? `${cumulative ? "Cumulative" : "Monthly"} revenue ${currentAcademicYear} vs LY.`
+              : `${cumulative ? "Cumulative" : "Monthly"} revenue based on active filters.`)}
           </p>
         </div>
         {!comparisonEnabled ? (
           <span className="rounded bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-700">
-            Pilih Academic Year untuk membandingkan
+            Select an Academic Year to compare
           </span>
         ) : null}
       </div>

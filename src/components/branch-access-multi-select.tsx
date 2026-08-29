@@ -93,12 +93,12 @@ export function BranchAccessMultiSelect({
   const allSelected = options.length > 0 && selected.length === options.length;
   const selectedLabel =
     selected.length === 0
-      ? "Pilih branch"
+      ? "Select branch"
       : allSelected
-        ? "Semua cabang"
+        ? "All branches"
         : selected.length === 1
-          ? options.find((option) => option.id === selected[0])?.name ?? "1 branch dipilih"
-          : `${selected.length} branch dipilih`;
+          ? options.find((option) => option.id === selected[0])?.name ?? "1 branch selected"
+          : `${selected.length} branches selected`;
 
   function toggleBranch(branchId: number) {
     setSelected((current) =>
@@ -138,7 +138,7 @@ export function BranchAccessMultiSelect({
       {open ? (
         <div
           role="listbox"
-          aria-label="Pilih branch"
+          aria-label="Select branch"
           aria-multiselectable="true"
             className="fixed z-[80] overflow-y-auto rounded-lg border border-slate-200 bg-white py-2 font-normal text-slate-700 shadow-xl"
           style={{
@@ -158,7 +158,7 @@ export function BranchAccessMultiSelect({
             <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded border ${allSelected ? "border-teal-700 bg-teal-700 text-white" : "border-slate-400 bg-white"}`}>
               {allSelected ? <Check className="h-3.5 w-3.5" aria-hidden /> : null}
             </span>
-            <span>Semua cabang</span>
+            <span>All branches</span>
           </button>
           <div className="border-t border-slate-100 pt-1">
             {options.map((option) => {

@@ -195,8 +195,8 @@ async function getAcademicYearBounds(
     ),
   ]);
 
-  if (!startResponse.ok) throw new Error(`Product start date gagal: ${await startResponse.text()}`);
-  if (!latestResponse.ok) throw new Error(`Product latest date gagal: ${await latestResponse.text()}`);
+  if (!startResponse.ok) throw new Error(`Product start date request failed: ${await startResponse.text()}`);
+  if (!latestResponse.ok) throw new Error(`Product latest date request failed: ${await latestResponse.text()}`);
 
   const startRows = (await startResponse.json()) as Array<{ payment_date?: string; month?: string }>;
   const latestRows = (await latestResponse.json()) as Array<{ payment_date?: string; month?: string }>;
@@ -270,7 +270,7 @@ export async function getAgentAnalytics(filters: {
       const key = `${row.agent_id}:${row.branch_id ?? "null"}`;
       const current = grouped.get(key) ?? {
         agent: agentById.get(row.agent_id) ?? `Agent #${row.agent_id}`,
-        branch: row.branch_id === null ? "(kosong)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
+        branch: row.branch_id === null ? "(empty)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
         schools: new Set<string>(),
         revenueNonBulkBuying: 0,
         revenueNewTxnNonBulkBuying: 0,
@@ -347,7 +347,7 @@ export async function getProductAnalytics(filters: {
         !dateMatches(row, filters.fromDate, filters.toDate)) continue;
       const lookup = row.product_id === null ? undefined : productById.get(row.product_id);
       const product = lookup?.product_name || lookup?.product_code ||
-        (row.product_id === null ? "(Tidak terpetakan)" : `Product #${row.product_id}`);
+        (row.product_id === null ? "(Unmapped)" : `Product #${row.product_id}`);
       const key = `${row.product_id ?? "null"}:${row.is_bulkbuying ? "bulk" : "retail"}`;
       const current = grouped.get(key) ?? {
         product,
@@ -494,7 +494,7 @@ export async function getSchoolAnalytics(filters: {
       const school = schoolByNpsn.get(row.npsn);
       if (filters.level && school?.level !== filters.level) continue;
       const current = grouped.get(row.npsn) ?? {
-        school: school?.name ?? "Sekolah tidak ditemukan",
+        school: school?.name ?? "School not found",
         city: school?.city ?? "-",
         revenue: 0,
         transactions: 0,
@@ -503,7 +503,7 @@ export async function getSchoolAnalytics(filters: {
       };
       const branchId = row.branch_id ?? -1;
       const branch = current.branches.get(branchId) ?? {
-        branch: row.branch_id === null ? "(kosong)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
+        branch: row.branch_id === null ? "(empty)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
         revenue: 0,
         transactions: 0,
       };

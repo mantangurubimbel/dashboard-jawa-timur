@@ -160,7 +160,7 @@ export function transformRevenueCsv(
   );
 
   if (missingColumn) {
-    throw new Error(`Kolom wajib tidak ditemukan: ${missingColumn}`);
+    throw new Error(`Required column not found: ${missingColumn}`);
   }
 
   const gradeByName = new Map(lookup.grades.map((row) => [normalize(row.grade), row.grade_id]));
@@ -177,7 +177,7 @@ export function transformRevenueCsv(
   );
 
   if (!oecAgent) {
-    throw new Error('Agent "OEC/Others" tidak ditemukan di t_agent.');
+    throw new Error('Agent "OEC/Others" was not found in t_agent.');
   }
 
   const agentsByNameBranch = new Map<string, Lookup["agents"]>();

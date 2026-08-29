@@ -15,7 +15,7 @@ export async function toggleRevenueDashboardAccess(formData: FormData) {
     .from("t_app_user")
     .update({ access_revenue_dashboard: access })
     .eq("id", userId);
-  if (error) throw new Error(`Gagal memperbarui akses user: ${error.message}`);
+  if (error) throw new Error(`Failed to update user access: ${error.message}`);
   revalidatePath("/settings");
 }
 
@@ -37,7 +37,7 @@ export async function assignDashboardBranch(formData: FormData) {
       branchIds.map((branchId) => ({ user_id: userId, branch_id: branchId })),
       { onConflict: "user_id,branch_id" },
     );
-  if (error) throw new Error(`Gagal menambahkan branch: ${error.message}`);
+  if (error) throw new Error(`Failed to add branch: ${error.message}`);
   revalidatePath("/settings");
 }
 
@@ -52,6 +52,6 @@ export async function removeDashboardBranch(formData: FormData) {
     .delete()
     .eq("user_id", userId)
     .eq("branch_id", branchId);
-  if (error) throw new Error(`Gagal menghapus branch: ${error.message}`);
+  if (error) throw new Error(`Failed to remove branch: ${error.message}`);
   revalidatePath("/settings");
 }

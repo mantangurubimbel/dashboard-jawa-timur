@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { supabaseRpcFetch, supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
 import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
 import {
@@ -70,6 +71,13 @@ type RevenueMonthlyTargetLookup = RevenueAnnualTargetLookup & {
   month_number: number;
 };
 
+const scopedSnapshotFetchInit: SupabaseFetchInit = {
+  next: { revalidate: 30, tags: ["revenue-dashboard"] },
+};
+
+let latestPeriodRpcUnavailable = false;
+let branchSummaryRpcUnavailable = false;
+
 async function fetchAll<T>(
   table: string,
   select: string,
@@ -140,6 +148,29 @@ async function fetchTransactions(
   }
 }
 
+function scopedTransactionCacheKey(branchIds: number[] | null) {
+  if (branchIds === null) return "*";
+  return Array.from(new Set(branchIds)).sort((a, b) => a - b).join(",");
+}
+
+/**
+ * Several executive-summary sections need the same unfiltered transaction
+ * snapshot for a branch scope. Keep this request-scoped so the local
+ * non-admin path does not scan the same Supabase pages repeatedly.
+ */
+const fetchScopedTransactionSnapshot = cache(async (branchIdsKey: string) => {
+  const branchIds = branchIdsKey === "*"
+    ? null
+    : branchIdsKey
+      ? branchIdsKey.split(",").map(Number)
+      : [];
+
+  return fetchTransactions({}, branchIds, {
+    useStoredAcademicYear: false,
+    init: scopedSnapshotFetchInit,
+  });
+});
+
 function parseRevenue(value: number | string | null) {
   return Number(value ?? 0) || 0;
 }
@@ -169,7 +200,7 @@ function labelForId(
   labels: Map<number, string>,
   prefix: string,
 ) {
-  return id === null ? "(kosong)" : labels.get(id) ?? `${prefix} #${id}`;
+  return id === null ? "(empty)" : labels.get(id) ?? `${prefix} #${id}`;
 }
 
 function summarize(
@@ -180,7 +211,7 @@ function summarize(
   const grouped = new Map<string, SummaryPoint>();
 
   for (const row of rows) {
-    const name = key(row) || "(kosong)";
+    const name = key(row) || "(empty)";
     const current = grouped.get(name) ?? { name, revenue: 0, transactions: 0 };
     current.revenue += row.revenue;
     current.transactions += 1;
@@ -206,7 +237,7 @@ function summarizeRevenueSource(
   }>();
 
   for (const row of rows) {
-    const name = key(row) || "(kosong)";
+    const name = key(row) || "(empty)";
     const current = grouped.get(name) ?? {
       name,
       revenue: 0,
@@ -573,7 +604,7 @@ export async function getRevenueGrowthSameDate(
 
   const errorText = await response.text();
   if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
-    throw new Error(`Revenue growth RPC gagal: ${errorText}`);
+    throw new Error(`Revenue growth RPC failed: ${errorText}`);
   }
 
   // Keep local development usable while the migration has not yet been
@@ -627,7 +658,7 @@ export async function getDashboardData(
 
   const errorText = await response.text();
   if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
-    throw new Error(`Dashboard RPC gagal: ${errorText}`);
+    throw new Error(`Dashboard RPC failed: ${errorText}`);
   }
 
   return getDashboardDataLegacy(selectedFilters, scope);
@@ -635,20 +666,51 @@ export async function getDashboardData(
 
 export async function getLatestRevenuePaymentDate(branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return { latestDate: null, startDate: null };
+  if (!latestPeriodRpcUnavailable) {
+    const periodResponse = await supabaseRpcFetch(
+      "get_latest_revenue_period",
+      { p_branch_ids: scope },
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    );
+    if (periodResponse.ok) {
+      const payload = await periodResponse.json() as {
+        latestDate?: string | null;
+        startDate?: string | null;
+      };
+      if (
+        Object.prototype.hasOwnProperty.call(payload, "latestDate") &&
+        Object.prototype.hasOwnProperty.call(payload, "startDate")
+      ) {
+        return {
+          latestDate: payload.latestDate ?? null,
+          startDate: payload.startDate ?? null,
+        };
+      }
+    } else {
+      const errorText = await periodResponse.text();
+      if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
+        throw new Error(`Latest revenue period RPC failed: ${errorText}`);
+      }
+      latestPeriodRpcUnavailable = true;
+    }
+  }
+  // Keep local development usable while the migration has not yet been
+  // applied. Fall back to the two existing REST reads below.
+
   const params = new URLSearchParams({
     select: "payment_date,month,academic_year,branch_id",
     order: "payment_date.desc",
     limit: "1",
   });
   if (scope !== null) {
-    if (!scope.length) return { latestDate: null, startDate: null };
     params.set("branch_id", `in.(${scope.join(",")})`);
   }
   const response = await supabaseRestFetch(
     `t_revenue_txn?${params.toString()}`,
     { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
   );
-  if (!response.ok) throw new Error(`Latest revenue date gagal: ${await response.text()}`);
+  if (!response.ok) throw new Error(`Latest revenue date request failed: ${await response.text()}`);
   const rows = (await response.json()) as Array<{ payment_date?: string; month?: string; academic_year?: string }>;
   const latest = rows[0];
   if (!latest?.payment_date || !latest.academic_year) return { latestDate: latest?.payment_date ?? null, startDate: null };
@@ -664,7 +726,7 @@ export async function getLatestRevenuePaymentDate(branchScope?: DashboardBranchS
     `t_revenue_txn?${startParams.toString()}`,
     { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
   );
-  if (!startResponse.ok) throw new Error(`Revenue start date gagal: ${await startResponse.text()}`);
+  if (!startResponse.ok) throw new Error(`Revenue start date request failed: ${await startResponse.text()}`);
   const starts = (await startResponse.json()) as Array<{ payment_date?: string }>;
   return { latestDate: latest.payment_date, startDate: starts[0]?.payment_date ?? null };
 }
@@ -678,10 +740,7 @@ export async function getBulkBuyingGrowth(
   const scope = branchScope ?? await getDashboardBranchScope();
   if (scope !== null && !scope.length) return { currentRevenue: 0, previousRevenue: 0 };
   if (scope !== null) {
-    const rows = await fetchTransactions({}, scope, {
-      useStoredAcademicYear: false,
-      init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-    });
+    const rows = await fetchScopedTransactionSnapshot(scopedTransactionCacheKey(scope));
     const previousAcademicYear = previousAcademicYearFrom(academicYear);
     const previousFromDate = previousYearDate(fromDate);
     const previousToDate = previousYearDate(toDate);
@@ -697,7 +756,7 @@ export async function getBulkBuyingGrowth(
   const response = await supabaseRpcFetch("get_bulk_buying_growth", {
     p_academic_year: academicYear, p_from_date: fromDate, p_to_date: toDate,
   }, { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
-  if (!response.ok) throw new Error(`Bulk buying RPC gagal: ${await response.text()}`);
+  if (!response.ok) throw new Error(`Bulk buying RPC failed: ${await response.text()}`);
   const value = await response.json() as { currentRevenue?: number; previousRevenue?: number };
   return { currentRevenue: Number(value.currentRevenue ?? 0), previousRevenue: Number(value.previousRevenue ?? 0) };
 }
@@ -748,7 +807,7 @@ export async function getBranchRevenuePerformance(
     p_branch_id: branchId ?? null,
     p_month: month ?? null,
   }, { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
-  if (!response.ok) throw new Error(`Branch performance RPC gagal: ${await response.text()}`);
+  if (!response.ok) throw new Error(`Branch performance RPC failed: ${await response.text()}`);
   return (await response.json()) as DashboardData["branchRevenuePerformance"];
 }
 
@@ -758,14 +817,49 @@ export async function getBranchRevenueSummary(
 ) {
   const scope = branchScope ?? await getDashboardBranchScope();
   if (scope !== null && !scope.length) return [];
+  if (scope === null) {
+    if (!branchSummaryRpcUnavailable) {
+      const response = await supabaseRpcFetch(
+        "get_executive_branch_revenue_summary",
+        { p_academic_year: academicYear },
+        { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+      );
+      if (response.ok) {
+        const payload = await response.json();
+        if (Array.isArray(payload)) {
+          return payload.map((row) => {
+            const value = row as Record<string, unknown>;
+            return {
+              name: String(value.name ?? "(empty)"),
+              newTransactions: Number(value.newTransactions ?? value.new_transactions ?? 0),
+              revenue: Number(value.revenue ?? 0),
+            };
+          });
+        }
+      } else {
+        const errorText = await response.text();
+        if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
+          throw new Error(`Executive branch summary RPC failed: ${errorText}`);
+        }
+        branchSummaryRpcUnavailable = true;
+      }
+    }
+    // Keep local development usable while the migration has not yet been
+    // applied. The scoped/local path below preserves the existing result.
+  }
+
+  return getBranchRevenueSummaryLegacy(academicYear, scope);
+}
+
+async function getBranchRevenueSummaryLegacy(
+  academicYear: string,
+  scope: DashboardBranchScope,
+) {
   const [branches, rows] = await Promise.all([
     fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id", 1000, {
       next: { revalidate: 30, tags: ["revenue-dashboard"] },
     }, scope === null ? {} : { branch_id: `in.(${scope.join(",")})` } as Record<string, string>),
-    fetchTransactions({}, scope, {
-      useStoredAcademicYear: false,
-      init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-    }),
+    fetchScopedTransactionSnapshot(scopedTransactionCacheKey(scope ?? null)),
   ]);
   const branchMap = new Map(
     branches.map((branch) => [branch.branch_id, branch.branch_name]),
@@ -781,7 +875,7 @@ export async function getBranchRevenueSummary(
       continue;
     }
     const current = grouped.get(row.branch_id) ?? {
-      name: branchMap.get(row.branch_id) ?? "Branch tidak ditemukan",
+      name: branchMap.get(row.branch_id) ?? "Branch not found",
       newTransactions: 0,
       revenue: 0,
     };
@@ -887,16 +981,16 @@ function normalizeDashboardPayload(payload: Record<string, unknown>): DashboardD
     id: Number(row.id),
     paymentDate: String(row.paymentDate ?? row.payment_date ?? ""),
     invoice: String(row.invoice ?? ""),
-    product: String(row.product ?? "(kosong)"),
-    branch: String(row.branch ?? "(kosong)"),
+    product: String(row.product ?? "(empty)"),
+    branch: String(row.branch ?? "(empty)"),
     revenue: Number(row.revenue ?? 0),
     flags: Array.isArray(row.flags) ? row.flags.map(String) : [],
   }));
   const agentPerformance = (
     (payload.agentPerformance ?? []) as Record<string, unknown>[]
   ).map((row) => ({
-    agent: String(row.agent ?? "(Agent tidak terpetakan)"),
-    branch: String(row.branch ?? "(kosong)"),
+    agent: String(row.agent ?? "(Unmapped agent)"),
+    branch: String(row.branch ?? "(empty)"),
     schools: Number(row.schools ?? 0),
     revenueNonBulkBuying: Number(row.revenue_non_bulk_buying ?? 0),
     revenueNewTxnNonBulkBuying: Number(row.revenue_new_txn_non_bulk_buying ?? 0),
@@ -960,14 +1054,22 @@ async function getDashboardDataLegacy(
       : branches
           .filter((branch) => branch.region_id === filters.regionId && availableBranchIds.includes(branch.branch_id))
           .map((branch) => branch.branch_id);
-  const transactionRows = await fetchTransactions(filters, regionBranchIds, {
-    useStoredAcademicYear: false,
-  });
   const allAcademicYears = academicYears.map((row) => row.academic_year);
   const previousYear = previousAcademicYear(filters.academicYear, allAcademicYears);
   const lastTwoYear = previousAcademicYear(previousYear ?? undefined, allAcademicYears);
-  const comparisonRows = filters.academicYear
-    ? await fetchTransactions(
+  const canUseUnfilteredSnapshot = !filters.regionId &&
+    !filters.branchId &&
+    !filters.month &&
+    !filters.fromDate &&
+    !filters.toDate;
+  const unfilteredSnapshot = canUseUnfilteredSnapshot
+    ? fetchScopedTransactionSnapshot(scopedTransactionCacheKey(regionBranchIds))
+    : null;
+  const transactionRowsPromise = unfilteredSnapshot ?? fetchTransactions(filters, regionBranchIds, {
+    useStoredAcademicYear: false,
+  });
+  const comparisonRowsPromise = filters.academicYear
+    ? unfilteredSnapshot ?? fetchTransactions(
         {
           ...filters,
           academicYear: previousYear ?? "__no_previous_year__",
@@ -978,19 +1080,19 @@ async function getDashboardDataLegacy(
         { useStoredAcademicYear: false },
       )
     : filters.fromDate || filters.toDate
-      ? await fetchTransactions(
+      ? fetchTransactions(
           {
             ...filters,
             academicYear: undefined,
             fromDate: previousYearDate(filters.fromDate),
             toDate: previousYearDate(filters.toDate),
-        },
-        regionBranchIds,
-        { useStoredAcademicYear: false },
-      )
-    : [];
-  const lastTwoRows = filters.academicYear && lastTwoYear
-    ? await fetchTransactions(
+          },
+          regionBranchIds,
+          { useStoredAcademicYear: false },
+        )
+      : Promise.resolve([]);
+  const lastTwoRowsPromise = filters.academicYear && lastTwoYear
+    ? unfilteredSnapshot ?? fetchTransactions(
         {
           ...filters,
           academicYear: lastTwoYear,
@@ -1000,7 +1102,12 @@ async function getDashboardDataLegacy(
         regionBranchIds,
         { useStoredAcademicYear: false },
       )
-    : [];
+    : Promise.resolve([]);
+  const [transactionRows, comparisonRows, lastTwoRows] = await Promise.all([
+    transactionRowsPromise,
+    comparisonRowsPromise,
+    lastTwoRowsPromise,
+  ]);
   const comparisonEnabled = Boolean(
     filters.academicYear || filters.fromDate || filters.toDate,
   );
@@ -1021,7 +1128,7 @@ async function getDashboardDataLegacy(
   const gradeLevelById = new Map(
     grades.map((row) => {
       const match = row.grade.match(/(SD|SMP|SMA)$/);
-      return [row.grade_id, match?.[1] ?? "Lainnya"];
+      return [row.grade_id, match?.[1] ?? "Other"];
     }),
   );
   const branchRegionById = new Map(
@@ -1228,18 +1335,18 @@ async function getDashboardDataLegacy(
       .sort((a, b) => monthSortValue(a.name) - monthSortValue(b.name))
       .map((point) => ({ ...point, period: point.name })),
     monthlyRevenueComparison: {
-      currentAcademicYear: filters.academicYear ?? (comparisonEnabled ? "Periode aktif" : null),
+      currentAcademicYear: filters.academicYear ?? (comparisonEnabled ? "Active period" : null),
       previousAcademicYear:
-        previousYear ?? (comparisonEnabled ? "Periode tahun lalu" : null),
+        previousYear ?? (comparisonEnabled ? "Previous-year period" : null),
       rows: monthlyRevenueComparison,
     },
     regionalRevenue: summarize(
       rows,
-      (row) => row.branchId === null ? "(kosong)" : branchRegionById.get(row.branchId) ?? "(kosong)",
+      (row) => row.branchId === null ? "(empty)" : branchRegionById.get(row.branchId) ?? "(empty)",
     ),
     regionalRevenueSource: summarizeRevenueSource(
       rows,
-      (row) => row.branchId === null ? "(kosong)" : branchRegionById.get(row.branchId) ?? "(kosong)",
+      (row) => row.branchId === null ? "(empty)" : branchRegionById.get(row.branchId) ?? "(empty)",
     ),
     branchRevenue: summarize(
       rows,
@@ -1274,16 +1381,16 @@ async function getDashboardDataLegacy(
     ],
     levelRevenue: summarize(
       rows,
-      (row) => row.gradeId === null ? "(kosong)" : gradeLevelById.get(row.gradeId) ?? "Lainnya",
+      (row) => row.gradeId === null ? "(empty)" : gradeLevelById.get(row.gradeId) ?? "Other",
     ),
     dataQuality: [
-      missing("Grade ID kosong", rows.filter((row) => row.gradeId === null).length),
-      missing("Agent ID kosong", rows.filter((row) => row.agentId === null).length),
+      missing("Grade ID empty", rows.filter((row) => row.gradeId === null).length),
+      missing("Agent ID empty", rows.filter((row) => row.agentId === null).length),
       missing(
-        "Destination branch kosong",
+        "Destination branch empty",
         rows.filter((row) => row.branchDestinationId === null).length,
       ),
-      missing("NPSN kosong", rows.filter((row) => row.npsn === null).length),
+      missing("NPSN empty", rows.filter((row) => row.npsn === null).length),
     ],
     recentTransactions: rows.slice(0, 10).map((row) => ({
       id: row.id,

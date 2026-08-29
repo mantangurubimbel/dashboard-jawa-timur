@@ -9,14 +9,14 @@ export async function signIn(formData: FormData) {
   const password = String(formData.get("password") ?? "");
 
   if (!email || !password) {
-    redirect("/login?error=Email%20dan%20password%20wajib%20diisi.");
+    redirect("/login?error=Email%20and%20password%20are%20required.");
   }
 
   const supabase = await createSupabaseAuthServerClient();
   const { error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
-    redirect("/login?error=Email%20atau%20password%20tidak%20valid.");
+    redirect("/login?error=Invalid%20email%20or%20password.");
   }
 
   redirect("/executive-summary");
@@ -34,15 +34,15 @@ export async function changePassword(formData: FormData) {
   const confirmPassword = String(formData.get("confirm_password") ?? "");
 
   if (!currentPassword || !newPassword || !confirmPassword) {
-    redirect("/change-password?error=Semua%20field%20wajib%20diisi.");
+    redirect("/change-password?error=All%20fields%20are%20required.");
   }
 
   if (newPassword.length < 8) {
-    redirect("/change-password?error=Password%20baru%20minimal%208%20karakter.");
+    redirect("/change-password?error=New%20password%20must%20be%20at%20least%208%20characters.");
   }
 
   if (newPassword !== confirmPassword) {
-    redirect("/change-password?error=Konfirmasi%20password%20tidak%20sama.");
+    redirect("/change-password?error=Password%20confirmation%20does%20not%20match.");
   }
 
   const supabase = await createSupabaseAuthServerClient();
@@ -55,7 +55,7 @@ export async function changePassword(formData: FormData) {
   }
 
   if (!user.email) {
-    redirect("/change-password?error=Akun%20tidak%20memiliki%20email%20yang%20valid.");
+    redirect("/change-password?error=The%20account%20does%20not%20have%20a%20valid%20email%20address.");
   }
 
   // Verify the current password with an isolated client. Using the session
@@ -72,7 +72,7 @@ export async function changePassword(formData: FormData) {
   });
 
   if (verifyError) {
-    redirect("/change-password?error=Password%20lama%20tidak%20sesuai.");
+    redirect("/change-password?error=The%20current%20password%20is%20incorrect.");
   }
 
   const { error } = await supabase.auth.updateUser({ password: newPassword });
@@ -82,5 +82,5 @@ export async function changePassword(formData: FormData) {
   }
 
   await supabase.auth.signOut();
-  redirect("/login?success=Password%20berhasil%20diubah.%20Silakan%20masuk%20kembali.");
+  redirect("/login?success=Password%20changed%20successfully.%20Please%20sign%20in%20again.");
 }

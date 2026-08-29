@@ -23,13 +23,13 @@ export async function POST(request: Request) {
     const mode = String(formData.get("mode") ?? "preview");
 
     if (!(file instanceof File)) {
-      return Response.json({ error: "File CSV wajib dipilih." }, { status: 400 });
+      return Response.json({ error: "A CSV file is required." }, { status: 400 });
     }
     if (!["annual", "monthly"].includes(kind)) {
-      return Response.json({ error: "Jenis target tidak valid." }, { status: 400 });
+      return Response.json({ error: "Invalid target type." }, { status: 400 });
     }
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      return Response.json({ error: "File harus berformat CSV." }, { status: 400 });
+      return Response.json({ error: "The file must be in CSV format." }, { status: 400 });
     }
 
     const [branches, academicYears] = await Promise.all([
@@ -42,17 +42,17 @@ export async function POST(request: Request) {
     });
 
     if (transformed.report.inputRows === 0) {
-      return Response.json({ error: "CSV tidak memiliki baris data." }, { status: 400 });
+      return Response.json({ error: "The CSV contains no data rows." }, { status: 400 });
     }
     if (transformed.report.invalidRows > 0) {
       return Response.json(
-        { error: "Validasi target gagal.", report: transformed.report },
+        { error: "Target validation failed.", report: transformed.report },
         { status: 400 },
       );
     }
     if (mode !== "commit") {
       return Response.json({
-        message: "Preview target siap diimport.",
+        message: "Target preview is ready to import.",
         preview: true,
         report: transformed.report,
       });
@@ -86,17 +86,17 @@ export async function POST(request: Request) {
       .upsert(payload, { onConflict, ignoreDuplicates: false })
       .select("id");
     if (error) {
-      throw new Error(`Import target gagal: ${error.message}`);
+      throw new Error(`Target import failed: ${error.message}`);
     }
 
     return Response.json({
-      message: "Import target berhasil.",
+      message: "Target import completed successfully.",
       imported: importedRows?.length ?? transformed.rows.length,
       report: transformed.report,
     });
   } catch (error) {
     return Response.json(
-      { error: error instanceof Error ? error.message : "Import target gagal." },
+      { error: error instanceof Error ? error.message : "Target import failed." },
       { status: 500 },
     );
   }

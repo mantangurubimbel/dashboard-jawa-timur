@@ -14,10 +14,12 @@ import {
   School,
   HeartHandshake,
   ChevronDown,
+  Menu,
+  X,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -50,9 +52,107 @@ export function AppShell({
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const previousPathname = useRef(pathname);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
     "Revenue Overview": true, "Students Overview": true, "School Partner": true,
   });
+
+  useEffect(() => {
+    if (previousPathname.current === pathname) return;
+    previousPathname.current = pathname;
+    const closeTimer = window.setTimeout(() => setMobileMenuOpen(false), 0);
+    return () => window.clearTimeout(closeTimer);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setMobileMenuOpen(false);
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [mobileMenuOpen]);
+
+  const renderNavigation = (isMobile = false) =>
+    navigation.map((item) => {
+      const Icon = item.icon;
+      const isCollapsed = isMobile ? false : collapsed;
+
+      if (item.children) {
+        const isOpen = expanded[item.label] ?? false;
+        return (
+          <div key={item.label}>
+            <button
+              type="button"
+              onClick={() =>
+                setExpanded((state) => ({ ...state, [item.label]: !isOpen }))
+              }
+              aria-expanded={isOpen}
+              className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden />
+              {!isCollapsed ? (
+                <>
+                  <span className="flex-1 text-left">{item.label}</span>
+                  <ChevronDown
+                    className={`h-4 w-4 transition ${isOpen ? "rotate-180" : ""}`}
+                    aria-hidden
+                  />
+                </>
+              ) : null}
+            </button>
+            {!isCollapsed && isOpen ? (
+              <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
+                {item.children.map((child) => {
+                  const ChildIcon = child.icon;
+                  const active = pathname === child.href;
+                  return (
+                    <Link
+                      key={child.href}
+                      href={child.href}
+                      onClick={() => {
+                        if (isMobile) setMobileMenuOpen(false);
+                      }}
+                      className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${
+                        active
+                          ? "bg-teal-50 text-teal-800"
+                          : "text-slate-600 hover:bg-slate-100"
+                      }`}
+                    >
+                      <ChildIcon className="h-4 w-4" aria-hidden />
+                      {child.label}
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      }
+
+      const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+      return (
+        <Link
+          key={item.href}
+          href={item.href}
+          onClick={() => {
+            if (isMobile) setMobileMenuOpen(false);
+          }}
+          title={!isMobile && collapsed ? item.label : undefined}
+          className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${
+            active
+              ? "bg-teal-50 text-teal-800"
+              : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
+          }`}
+        >
+          <Icon className="h-4 w-4 shrink-0" aria-hidden />
+          {!isCollapsed ? <span>{item.label}</span> : null}
+        </Link>
+      );
+    });
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -74,36 +174,7 @@ export function AppShell({
           </Link>
         </div>
 
-        <nav className="flex-1 space-y-1 p-3">
-          {navigation.map((item) => {
-            const Icon = item.icon;
-            if (item.children) {
-              const isOpen = expanded[item.label] ?? false;
-              return <div key={item.label}>
-                <button type="button" onClick={() => setExpanded((state) => ({ ...state, [item.label]: !isOpen }))} className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-100">
-                  <Icon className="h-4 w-4 shrink-0" aria-hidden />{!collapsed ? <><span className="flex-1 text-left">{item.label}</span><ChevronDown className={`h-4 w-4 transition ${isOpen ? "rotate-180" : ""}`} /></> : null}
-                </button>
-                {!collapsed && isOpen ? <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">{item.children.map((child) => { const ChildIcon = child.icon; const active = pathname === child.href; return <Link key={child.href} href={child.href} className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm transition ${active ? "bg-teal-50 text-teal-800" : "text-slate-600 hover:bg-slate-100"}`}><ChildIcon className="h-4 w-4" />{child.label}</Link>; })}</div> : null}
-              </div>;
-            }
-            const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                title={collapsed ? item.label : undefined}
-                className={`flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition ${
-                  active
-                    ? "bg-teal-50 text-teal-800"
-                    : "text-slate-600 hover:bg-slate-100 hover:text-slate-950"
-                }`}
-              >
-                <Icon className="h-4 w-4 shrink-0" aria-hidden />
-                {!collapsed ? <span>{item.label}</span> : null}
-              </Link>
-            );
-          })}
-        </nav>
+        <nav className="flex-1 space-y-1 p-3">{renderNavigation()}</nav>
 
         <div className="border-t border-slate-200 p-3">
           <button
@@ -117,9 +188,61 @@ export function AppShell({
         </div>
       </aside>
 
+      {mobileMenuOpen ? (
+        <>
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(false)}
+            className="fixed inset-0 z-40 bg-slate-950/30 lg:hidden"
+            aria-label="Close navigation menu"
+          />
+          <aside
+            id="mobile-navigation"
+            className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-slate-200 bg-white shadow-xl lg:hidden"
+            aria-label="Mobile navigation"
+          >
+            <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+              <Link
+                href="/revenue"
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex min-w-0 items-center gap-3"
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-sm font-bold text-white">
+                  JT
+                </span>
+                <span className="truncate text-sm font-semibold text-slate-950">
+                  Jawa Timur Revenue
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMobileMenuOpen(false)}
+                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                aria-label="Close navigation menu"
+              >
+                <X className="h-5 w-5" aria-hidden />
+              </button>
+            </div>
+            <nav className="flex-1 space-y-1 overflow-y-auto p-3">
+              {renderNavigation(true)}
+            </nav>
+          </aside>
+        </>
+      ) : null}
+
       <div className={`transition-all ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
         <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 lg:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(true)}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+              aria-label="Open navigation menu"
+              aria-expanded={mobileMenuOpen}
+              aria-controls="mobile-navigation"
+            >
+              <Menu className="h-5 w-5" aria-hidden />
+            </button>
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-teal-700 text-xs font-bold text-white">
               JT
             </span>

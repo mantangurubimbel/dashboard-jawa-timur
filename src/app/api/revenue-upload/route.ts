@@ -35,7 +35,7 @@ async function fetchLookup() {
   const [grades, products, agents, branches, academicYears, schools] = await Promise.all([
     fetchAll<{ grade_id: number; grade: string }>("t_grade", "grade_id,grade").catch(
       (error) => {
-        throw new Error(`Lookup t_grade gagal: ${error instanceof Error ? error.message : error}`);
+        throw new Error(`Lookup t_grade failed: ${error instanceof Error ? error.message : error}`);
       },
     ),
     fetchAll<{ product_id: number; product_code: string }>(
@@ -43,28 +43,28 @@ async function fetchLookup() {
       "product_id,product_code",
     ).catch((error) => {
       throw new Error(
-        `Lookup t_revenue_products gagal: ${error instanceof Error ? error.message : error}`,
+        `Lookup t_revenue_products failed: ${error instanceof Error ? error.message : error}`,
       );
     }),
     fetchAll<{ agent_id: number; agent_name: string; branch_id: number | null }>(
       "t_agent",
       "agent_id,agent_name,branch_id",
     ).catch((error) => {
-      throw new Error(`Lookup t_agent gagal: ${error instanceof Error ? error.message : error}`);
+      throw new Error(`Lookup t_agent failed: ${error instanceof Error ? error.message : error}`);
     }),
     fetchAll<{ branch_id: number; branch_name: string }>("t_branch", "branch_id,branch_name").catch(
       (error) => {
-        throw new Error(`Lookup t_branch gagal: ${error instanceof Error ? error.message : error}`);
+        throw new Error(`Lookup t_branch failed: ${error instanceof Error ? error.message : error}`);
       },
     ),
     fetchAll<{ academic_year: string }>("t_academic_year", "academic_year").catch((error) => {
       throw new Error(
-        `Lookup t_academic_year gagal: ${error instanceof Error ? error.message : error}`,
+        `Lookup t_academic_year failed: ${error instanceof Error ? error.message : error}`,
       );
     }),
     fetchAll<{ npsn: string }>("t_master_school", "npsn").catch((error) => {
       throw new Error(
-        `Lookup t_master_school gagal: ${error instanceof Error ? error.message : error}`,
+        `Lookup t_master_school failed: ${error instanceof Error ? error.message : error}`,
       );
     }),
   ]);
@@ -87,15 +87,15 @@ export async function POST(request: Request) {
     const mode = String(formData.get("mode") ?? "preview").trim();
 
     if (!(file instanceof File)) {
-      return Response.json({ error: "File CSV wajib dipilih." }, { status: 400 });
+      return Response.json({ error: "A CSV file is required." }, { status: 400 });
     }
 
     if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
-      return Response.json({ error: "Tanggal start wajib diisi." }, { status: 400 });
+      return Response.json({ error: "A valid start date is required." }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      return Response.json({ error: "File harus berformat CSV." }, { status: 400 });
+      return Response.json({ error: "The file must be in CSV format." }, { status: 400 });
     }
 
     const lookup = await fetchLookup();
@@ -103,12 +103,12 @@ export async function POST(request: Request) {
     const transformed = transformRevenueCsv(csvText, startDate, lookup);
 
     if (!transformed.report.inputRows) {
-      return Response.json({ error: "File CSV tidak memiliki baris data." }, { status: 400 });
+      return Response.json({ error: "The CSV contains no data rows." }, { status: 400 });
     }
 
     if (!transformed.rows.length) {
       return Response.json({
-        message: "Tidak ada data yang memenuhi filter tanggal.",
+        message: "No data matches the date filter.",
         report: transformed.report,
       });
     }
@@ -125,11 +125,11 @@ export async function POST(request: Request) {
         .in("payment_date", replacementDates);
 
       if (error) {
-        throw new Error(`Preview data lama gagal: ${error.message}`);
+        throw new Error(`Existing data preview failed: ${error.message}`);
       }
 
       return Response.json({
-        message: "Preview replace siap dikonfirmasi.",
+        message: "Replace preview is ready for confirmation.",
         preview: true,
         existingRows: count ?? 0,
         replacementDates,
@@ -143,11 +143,11 @@ export async function POST(request: Request) {
       { p_rows: transformed.rows },
     );
     if (replaceError) {
-      throw new Error(`Replace gagal: ${replaceError.message}`);
+      throw new Error(`Replace failed: ${replaceError.message}`);
     }
 
     return Response.json({
-      message: "Replace dan import berhasil.",
+      message: "Replace and import completed successfully.",
       inserted: replacementResult?.inserted_rows ?? transformed.rows.length,
       deleted: replacementResult?.deleted_rows ?? 0,
       replacedDates: replacementResult?.replaced_dates ?? replacementDates.length,
@@ -155,7 +155,7 @@ export async function POST(request: Request) {
       report: transformed.report,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Upload gagal diproses.";
+    const message = error instanceof Error ? error.message : "Upload failed to process.";
     return Response.json({ error: message }, { status: 500 });
   }
 }

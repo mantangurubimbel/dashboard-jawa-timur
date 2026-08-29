@@ -50,7 +50,7 @@ export function AgentFilters({
       <div className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div className="flex items-center gap-2">
           <Filter className="h-4 w-4 text-teal-700" aria-hidden />
-          <span className="text-sm font-semibold text-slate-950">Filter Agent</span>
+          <span className="text-sm font-semibold text-slate-950">Agent Filters</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <select

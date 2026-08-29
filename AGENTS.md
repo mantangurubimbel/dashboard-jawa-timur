@@ -137,6 +137,13 @@ Important analytical concepts already present in the codebase:
 
 Do not silently change the meaning of these metrics. When modifying a calculation, locate and preserve the existing source-of-truth logic.
 
+### Comparison abbreviations
+
+- `LY` = Last Year
+- `L2Y` = Last Two Year
+- `SP` = Same Period
+- `EOAY` = End of Academic Year
+
 ## 6. UI / UX conventions
 
 The existing UI uses:

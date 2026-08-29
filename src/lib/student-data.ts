@@ -465,7 +465,7 @@ export async function getStudentOverviewData(filters: {
 
       return {
         npsn,
-        school: schoolByNpsn.get(npsn) ?? "Sekolah tidak ditemukan",
+        school: schoolByNpsn.get(npsn) ?? "School not found",
         level,
         students: countByNpsn(currentRowsByNpsn, npsn),
         lySamePeriod: countByNpsn(comparisonRowsByNpsn, npsn, lySamePeriodStart, lySamePeriodEnd),
@@ -498,7 +498,7 @@ export async function getStudentOverviewData(filters: {
       return {
         nis: current.nis,
         name: current.user_name,
-        branch: branchById.get(current.branch_id)?.branch_name ?? "Branch tidak ditemukan",
+        branch: branchById.get(current.branch_id)?.branch_name ?? "Branch not found",
         purchases: history.length,
         academicYears: academicYears.join(", "),
         userSerial,
@@ -511,7 +511,7 @@ export async function getStudentOverviewData(filters: {
             academicYear: row.academic_year,
             grade: row.grade_id === null ? "-" : gradeById.get(row.grade_id)?.grade ?? "-",
             school: row.npsn ? schoolByNpsn.get(row.npsn) ?? "-" : "-",
-            branch: branchById.get(row.branch_id)?.branch_name ?? "Branch tidak ditemukan",
+            branch: branchById.get(row.branch_id)?.branch_name ?? "Branch not found",
           })),
       };
     })
@@ -537,7 +537,7 @@ export async function getStudentOverviewData(filters: {
     if (!gradeKey) continue;
     const current = schoolSmaMap.get(row.npsn) ?? {
       npsn: row.npsn,
-      school: schoolByNpsn.get(row.npsn) ?? "Sekolah tidak ditemukan",
+      school: schoolByNpsn.get(row.npsn) ?? "School not found",
       years: new Map(),
     };
     const year = current.years.get(row.academic_year) ?? {
@@ -598,7 +598,7 @@ export async function getStudentOverviewData(filters: {
     weeks: weeklyWeeks,
     rows: Array.from(weeklyBranchMap.entries())
       .map(([branchId, values]) => ({
-        branch: branchById.get(branchId)?.branch_name ?? "Branch tidak ditemukan",
+        branch: branchById.get(branchId)?.branch_name ?? "Branch not found",
         values,
       }))
       .sort((a, b) => a.branch.localeCompare(b.branch)),
@@ -616,7 +616,7 @@ export async function getStudentOverviewData(filters: {
   const countGrade = (rows: StudentRow[], gradeName: string) =>
     countUnique(rows.filter((row) => gradeCategory(row) === gradeName));
   const levelCategory = (row: StudentRow) =>
-    row.grade_id === null ? "Tidak terpetakan" : gradeById.get(row.grade_id)?.level ?? "Tidak terpetakan";
+    row.grade_id === null ? "Unmapped" : gradeById.get(row.grade_id)?.level ?? "Unmapped";
   const countLevel = (rows: StudentRow[], levelName: string) =>
     countUnique(rows.filter((row) => levelCategory(row) === levelName));
   const lySamePeriodRows = comparisonBase.filter((row) =>
@@ -625,7 +625,7 @@ export async function getStudentOverviewData(filters: {
   const l2ySamePeriodRows = comparisonBase.filter((row) =>
     row.academic_year === l2yAcademicYear && row.payment_date <= l2ySamePeriodEnd,
   );
-  const levelOrder = ["SMA", "SMP", "SD", "Tidak terpetakan"];
+  const levelOrder = ["SMA", "SMP", "SD", "Unmapped"];
   const levelCounts = new Map(group(levelCategory).map((row) => [row.name, row.students]));
   const levelStudents = levelOrder
     .filter((level) => levelCounts.has(level))
@@ -643,7 +643,7 @@ export async function getStudentOverviewData(filters: {
     .map((branchId) => {
       const branchRows = comparisonBase.filter((row) => row.branch_id === branchId);
       return {
-        branch: branchById.get(branchId)?.branch_name ?? "Branch tidak ditemukan",
+        branch: branchById.get(branchId)?.branch_name ?? "Branch not found",
         current: countUnique(currentRows.filter((row) => row.branch_id === branchId)),
         lySamePeriod: countUnique(branchRows.filter((row) =>
           row.academic_year === lyAcademicYear &&
@@ -682,7 +682,7 @@ export async function getStudentOverviewData(filters: {
     monthlyStudents: Array.from(monthlyMap.entries())
       .map(([period, studentCount]) => ({ period, students: studentCount }))
       .sort((a, b) => sortMonth(a.period, b.period)),
-    branchStudents: group((row) => branchById.get(row.branch_id)?.branch_name ?? "Branch tidak ditemukan").slice(0, 12),
+    branchStudents: group((row) => branchById.get(row.branch_id)?.branch_name ?? "Branch not found").slice(0, 12),
     gradeStudents: gradeOrder
       .map((name) => ({
         name,
@@ -702,7 +702,7 @@ export async function getStudentOverviewData(filters: {
         name: row.user_name,
         nis: row.nis,
         academicYear: row.academic_year,
-        branch: branchById.get(row.branch_id)?.branch_name ?? "Branch tidak ditemukan",
+        branch: branchById.get(row.branch_id)?.branch_name ?? "Branch not found",
         status: row.status,
         paymentDate: row.payment_date,
       })),
@@ -837,8 +837,8 @@ export async function getStudentRevenueSummary(
   }
   for (const row of rows) {
     if (row.academic_year !== academicYear) continue;
-    const level = gradeById.get(row.grade_id ?? -1)?.level ?? "Tidak terpetakan";
-    const grade = gradeById.get(row.grade_id ?? -1)?.grade ?? "Tidak terpetakan";
+    const level = gradeById.get(row.grade_id ?? -1)?.level ?? "Unmapped";
+    const grade = gradeById.get(row.grade_id ?? -1)?.grade ?? "Unmapped";
     const gradeNises = gradeCounts.get(grade) ?? new Set<string>();
     gradeNises.add(row.nis);
     gradeCounts.set(grade, gradeNises);
@@ -858,7 +858,7 @@ export async function getStudentRevenueSummary(
   return {
     monthlyData: buildStudentMonthlyData(rows, academicYear),
     kpis: buildStudentKpis(rows, academicYear),
-    levelStudents: ["SMA", "SMP", "SD", "Tidak terpetakan"]
+    levelStudents: ["SMA", "SMP", "SD", "Unmapped"]
       .filter((level) => levelCounts.has(level))
       .map((name) => ({
         name,
@@ -869,7 +869,7 @@ export async function getStudentRevenueSummary(
       .sort((a, b) => b.students - a.students || a.name.localeCompare(b.name)),
     branchStudents: Array.from(branchStudents.entries())
       .map(([branchId, nises]) => ({
-        name: branchById.get(branchId) ?? "Branch tidak ditemukan",
+        name: branchById.get(branchId) ?? "Branch not found",
         students: nises.size,
         renewalRate: nises.size
           ? (branchSerials.get(branchId)?.size ?? 0) / nises.size

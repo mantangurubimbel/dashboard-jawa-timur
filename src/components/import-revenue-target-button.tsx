@@ -63,7 +63,7 @@ export function ImportRevenueTargetButton() {
         router.refresh();
       }
     } catch {
-      setResult({ error: "Tidak dapat terhubung ke server import target." });
+      setResult({ error: "Unable to connect to the target import server." });
     } finally {
       setBusy(false);
     }
@@ -94,15 +94,15 @@ export function ImportRevenueTargetButton() {
                   Import Target Revenue
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Target di-upsert berdasarkan academic year dan branch.
+                  Targets are upserted by academic year and branch.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => !busy && setOpen(false)}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100"
-                aria-label="Tutup modal"
-                title="Tutup modal"
+                aria-label="Close modal"
+                title="Close modal"
               >
                 <X className="h-5 w-5" aria-hidden />
               </button>
@@ -127,7 +127,7 @@ export function ImportRevenueTargetButton() {
               </div>
 
               <label className="block">
-                <span className="text-sm font-semibold text-slate-800">File CSV</span>
+                <span className="text-sm font-semibold text-slate-800">CSV file</span>
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -136,8 +136,8 @@ export function ImportRevenueTargetButton() {
                 />
                 <span className="mt-1 block text-xs text-slate-500">
                   {kind === "monthly"
-                    ? "Header: academic_year, branch_id atau branch_name, month, target_revenue"
-                    : "Header: academic_year, branch_id atau branch_name, target_revenue"}
+                    ? "Header: academic_year, branch_id or branch_name, month, target_revenue"
+                    : "Header: academic_year, branch_id or branch_name, target_revenue"}
                 </span>
               </label>
 
@@ -146,7 +146,7 @@ export function ImportRevenueTargetButton() {
                   <p className="font-semibold">{result.error}</p>
                   {result.report?.errors.slice(0, 3).map((error) => (
                     <p key={`${error.row}-${error.message}`} className="mt-1">
-                      Baris {error.row}: {error.message}
+                      Row {error.row}: {error.message}
                     </p>
                   ))}
                 </div>
@@ -156,7 +156,7 @@ export function ImportRevenueTargetButton() {
                 <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-900">
                   <p className="font-semibold">{result.message}</p>
                   <p className="mt-1">
-                    {result.report?.outputRows.toLocaleString("id-ID")} baris valid siap diproses.
+                    {result.report?.outputRows.toLocaleString("id-ID")} valid rows ready to process.
                   </p>
                 </div>
               ) : null}
@@ -170,7 +170,7 @@ export function ImportRevenueTargetButton() {
                     className="mt-0.5 h-4 w-4 accent-teal-700"
                   />
                   <span>
-                    Saya memahami bahwa target yang sama akan di-update dengan nilai dari file ini.
+                    I understand that existing targets will be updated with values from this file.
                   </span>
                 </label>
               ) : null}
@@ -182,7 +182,7 @@ export function ImportRevenueTargetButton() {
                   disabled={busy}
                   className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 disabled:opacity-50"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="button"
@@ -191,7 +191,7 @@ export function ImportRevenueTargetButton() {
                   className="inline-flex h-10 items-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {busy ? "Memproses..." : result?.preview ? "Import Target" : "Preview"}
+                  {busy ? "Processing..." : result?.preview ? "Import Target" : "Preview"}
                 </button>
               </div>
             </div>

@@ -11,11 +11,19 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 export type DashboardBranchScope = number[] | null;
 
 /**
- * Resolve the branch scope once per server render. React's request-scoped
- * cache prevents every data module on a page from performing the same auth
- * and assignment lookup.
+ * Context shared by the dashboard layout and data modules during one server
+ * render. Keeping the session/profile lookup here avoids repeating the same
+ * auth request before the page data is loaded.
  */
-export const getDashboardBranchScope = cache(async (): Promise<DashboardBranchScope> => {
+export type DashboardUserContext = {
+  user: { id: string; email?: string | null } | null;
+  profile: { name: string | null; access_revenue_dashboard: boolean | null } | null;
+  isAdmin: boolean;
+  hasDashboardAccess: boolean;
+  branchScope: DashboardBranchScope;
+};
+
+export const getDashboardUserContext = cache(async (): Promise<DashboardUserContext> => {
   const authClient = await createSupabaseAuthServerClient();
   const {
     data: { user },
@@ -25,10 +33,41 @@ export const getDashboardBranchScope = cache(async (): Promise<DashboardBranchSc
   if (authError || !user?.email) {
     // Dashboard routes already require authentication. If a data helper is
     // called outside that layout, fail closed instead of returning all data.
-    return [];
+    return {
+      user: null,
+      profile: null,
+      isAdmin: false,
+      hasDashboardAccess: false,
+      branchScope: [],
+    };
   }
 
-  if (isAdminEmail(user.email)) return null;
+  const isAdmin = isAdminEmail(user.email);
+  const { data: profile } = await createSupabaseServiceRoleClient()
+    .from("t_app_user")
+    .select("name,access_revenue_dashboard")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (isAdmin) {
+    return {
+      user: { id: user.id, email: user.email },
+      profile,
+      isAdmin,
+      hasDashboardAccess: true,
+      branchScope: null,
+    };
+  }
+
+  if (!profile?.access_revenue_dashboard) {
+    return {
+      user: { id: user.id, email: user.email },
+      profile,
+      isAdmin,
+      hasDashboardAccess: false,
+      branchScope: [],
+    };
+  }
 
   const { data, error } = await createSupabaseServiceRoleClient()
     .from("t_dashboard_user_branch")
@@ -36,16 +75,32 @@ export const getDashboardBranchScope = cache(async (): Promise<DashboardBranchSc
     .eq("user_id", user.id);
 
   if (error) {
-    throw new Error(`Gagal membaca akses branch dashboard: ${error.message}`);
+    throw new Error(`Failed to read dashboard branch access: ${error.message}`);
   }
 
-  return Array.from(
-    new Set(
-      (data ?? [])
-        .map((row) => Number(row.branch_id))
-        .filter((branchId) => Number.isSafeInteger(branchId) && branchId > 0),
+  return {
+    user: { id: user.id, email: user.email },
+    profile,
+    isAdmin,
+    hasDashboardAccess: true,
+    branchScope: Array.from(
+      new Set(
+        (data ?? [])
+          .map((row) => Number(row.branch_id))
+          .filter((branchId) => Number.isSafeInteger(branchId) && branchId > 0),
+      ),
     ),
-  );
+  };
+});
+
+/**
+ * Resolve the branch scope once per server render. React's request-scoped
+ * cache prevents every data module on a page from performing the same auth,
+ * profile, and assignment lookups.
+ */
+export const getDashboardBranchScope = cache(async (): Promise<DashboardBranchScope> => {
+  const context = await getDashboardUserContext();
+  return context.branchScope;
 });
 
 export function isBranchInScope(

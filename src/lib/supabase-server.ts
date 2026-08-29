@@ -16,7 +16,7 @@ export function getSupabaseServerConfig() {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!url || !serviceRoleKey) {
-    throw new Error("Supabase server environment belum lengkap.");
+    throw new Error("Supabase server environment is incomplete.");
   }
 
   return { url, serviceRoleKey };
@@ -80,7 +80,7 @@ export async function supabaseRestFetch(
     await new Promise((resolve) => setTimeout(resolve, 500 * (attempt + 1)));
   }
 
-  throw new Error("Supabase request gagal setelah beberapa percobaan.");
+  throw new Error("Supabase request failed after several attempts.");
 }
 
 export async function supabaseRpcFetch(

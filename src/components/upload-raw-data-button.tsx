@@ -58,7 +58,7 @@ export function UploadRawDataButton() {
         router.refresh();
       }
     } catch {
-      setResult({ error: "Tidak dapat terhubung ke server upload." });
+      setResult({ error: "Unable to connect to the upload server." });
     } finally {
       setBusy(false);
     }
@@ -96,15 +96,15 @@ export function UploadRawDataButton() {
                   Upload Raw Data
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  CSV akan dibersihkan, dipetakan ke master data, lalu disimpan ke Supabase.
+                  The CSV will be cleaned, mapped to master data, and saved to Supabase.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={closeModal}
                 className="rounded-md p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                aria-label="Tutup modal"
-                title="Tutup modal"
+                aria-label="Close modal"
+                title="Close modal"
               >
                 <X className="h-5 w-5" aria-hidden />
               </button>
@@ -112,7 +112,7 @@ export function UploadRawDataButton() {
 
             <form onSubmit={onSubmit} className="space-y-5 px-5 py-5">
               <label className="block">
-                <span className="text-sm font-semibold text-slate-800">File CSV</span>
+                <span className="text-sm font-semibold text-slate-800">CSV file</span>
                 <input
                   type="file"
                   accept=".csv,text/csv"
@@ -124,7 +124,7 @@ export function UploadRawDataButton() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-semibold text-slate-800">Tanggal start</span>
+                <span className="text-sm font-semibold text-slate-800">Start date</span>
                 <input
                   type="date"
                   value={startDate}
@@ -137,7 +137,7 @@ export function UploadRawDataButton() {
                   required
                 />
                 <span className="mt-1 block text-xs text-slate-500">
-                  Hanya baris dengan payment_date lebih besar atau sama dengan tanggal ini yang diproses.
+                  Only rows with a payment_date on or after this date will be processed.
                 </span>
               </label>
 
@@ -152,12 +152,12 @@ export function UploadRawDataButton() {
                   <p className="font-semibold">{result.message}</p>
                   {result.report ? (
                     <p className="mt-1 leading-5">
-                      {result.report.filteredRows.toLocaleString("id-ID")} baris lolos filter.
+                      {result.report.filteredRows.toLocaleString("id-ID")} rows passed the filter.
                       {result.preview
-                        ? ` ${result.existingRows?.toLocaleString("id-ID") ?? 0} baris lama pada ${result.replacementDates?.length ?? 0} tanggal akan diganti.`
-                        : ` ${result.deleted?.toLocaleString("id-ID") ?? 0} baris lama diganti dengan ${result.inserted?.toLocaleString("id-ID") ?? 0} baris baru pada ${result.replacedDates?.toLocaleString("id-ID") ?? 0} tanggal.`}
+                        ? ` ${result.existingRows?.toLocaleString("id-ID") ?? 0} existing rows across ${result.replacementDates?.length ?? 0} dates will be replaced.`
+                        : ` ${result.deleted?.toLocaleString("id-ID") ?? 0} existing rows were replaced with ${result.inserted?.toLocaleString("id-ID") ?? 0} new rows across ${result.replacedDates?.toLocaleString("id-ID") ?? 0} dates.`}
                       {result.report.oecDiscountOverrideRows
-                        ? ` ${result.report.oecDiscountOverrideRows.toLocaleString("id-ID")} baris memakai agent OEC/Others.`
+                        ? ` ${result.report.oecDiscountOverrideRows.toLocaleString("id-ID")} rows use the OEC/Others agent.`
                         : ""}
                     </p>
                   ) : null}
@@ -173,8 +173,8 @@ export function UploadRawDataButton() {
                     className="mt-0.5 h-4 w-4 accent-teal-700"
                   />
                   <span>
-                    Saya memahami bahwa data lama pada tanggal yang terdapat di file akan dihapus dan
-                    diganti dengan data baru.
+                    I understand that existing data for dates included in the file will be deleted and
+                    replaced with the new data.
                   </span>
                 </label>
               ) : null}
@@ -186,7 +186,7 @@ export function UploadRawDataButton() {
                   disabled={busy}
                   className="h-10 rounded-md border border-slate-300 px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
@@ -194,7 +194,7 @@ export function UploadRawDataButton() {
                   className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-teal-700 px-4 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {busy ? <LoaderCircle className="h-4 w-4 animate-spin" aria-hidden /> : null}
-                  {busy ? "Memproses..." : result?.preview ? "Replace & Upload" : "Preview Upload"}
+                  {busy ? "Processing..." : result?.preview ? "Replace & Upload" : "Preview Upload"}
                 </button>
               </div>
             </form>
