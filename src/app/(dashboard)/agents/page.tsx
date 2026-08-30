@@ -3,7 +3,7 @@ import { AgentFilters } from "@/components/agent-filters";
 import { AgentPerformanceTable } from "@/components/agent-performance-table";
 import { getAgentAnalytics } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
-import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
@@ -22,11 +22,6 @@ function countWeekdays(fromDate: string, toDate: string) {
   }
 
   return weekdays;
-}
-
-function academicYearStartDate(academicYear: string) {
-  const match = academicYear.match(/^(\d{2})\/\d{2}$/);
-  return match ? `20${match[1]}-07-01` : "";
 }
 
 export default async function AgentsPage({
@@ -50,40 +45,27 @@ export default async function AgentsPage({
     if (!branchScope.length) branchParams.set("branch_id", "in.(-1)");
     else branchParams.set("branch_id", `in.(${branchScope.join(",")})`);
   }
-  const [academicYears, branchesResponse] = await Promise.all([
-    getRevenueAcademicYearOptions(),
+  const [periodContext, branchesResponse] = await Promise.all([
+    getLatestRevenuePeriodContext(branchScope),
     supabaseRestFetch(`t_branch?${branchParams.toString()}`),
   ]);
   const branches = branchesResponse.ok
     ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string }[]).map((row) => ({ id: String(row.branch_id), label: row.branch_name }))
     : [];
-  const academicYear = academicYears.some((year) => year.id === value("academicYear"))
-    ? value("academicYear")
-    : academicYears[0]?.id ?? "";
+  const academicYear = periodContext.academicYear ?? "";
+  const requestedMonth = value("month");
+  const month = periodContext.months.some((option) => option.id === requestedMonth)
+    ? requestedMonth
+    : "";
   const selectedFromDate = value("fromDate");
   const selectedToDate = value("toDate");
-  const latestTxnResponse = await supabaseRestFetch(
-    (() => {
-      const params = new URLSearchParams({
-        select: "payment_date",
-        academic_year: `eq.${academicYear}`,
-        order: "payment_date.desc",
-        limit: "1",
-      });
-      if (branchScope !== null) params.set("branch_id", branchScope.length ? `in.(${branchScope.join(",")})` : "in.(-1)");
-      return `t_revenue_txn?${params.toString()}`;
-    })(),
-  );
-  const latestTxnRows = latestTxnResponse.ok
-    ? ((await latestTxnResponse.json()) as { payment_date: string }[])
-    : [];
-  const latestAcademicYearDate = latestTxnRows[0]?.payment_date ?? "";
-  const productivityFromDate = selectedFromDate || academicYearStartDate(academicYear);
-  const productivityToDate = selectedToDate || latestAcademicYearDate;
+  const productivityFromDate = selectedFromDate || periodContext.startDate || "";
+  const productivityToDate = selectedToDate || periodContext.latestPaymentDate || "";
   const productivityWeekdays = countWeekdays(productivityFromDate, productivityToDate);
   const rows = await getAgentAnalytics({
     academicYear,
     branchId: value("branchId") ? Number(value("branchId")) : undefined,
+    month: month || undefined,
     fromDate: selectedFromDate || undefined,
     toDate: selectedToDate || undefined,
   }, branchScope);
@@ -97,14 +79,16 @@ export default async function AgentsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">Agent Productivity</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Revenue from new txn and non bulk buying transaction</p>
+        <p className="mt-2 text-sm text-slate-600">
+          Revenue from new transactions and non-bulk-buying transactions for academic year {academicYear || "-"}.
+        </p>
       </header>
       <AgentFilters
-        academicYears={academicYears.map((year) => year.id)}
         branches={branches}
+        months={periodContext.months.map((option) => option.id)}
         values={{
-          academicYear,
           branchId: value("branchId"),
+          month,
           fromDate: value("fromDate"),
           toDate: value("toDate"),
         }}

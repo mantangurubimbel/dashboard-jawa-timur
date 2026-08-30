@@ -147,6 +147,7 @@ async function getAcademicYearBounds(
   academicYear: string,
   branchScope: DashboardBranchScope,
   selectedBranchId?: number,
+  selectedMonth?: string,
 ): Promise<AcademicYearBounds> {
   const startYear = academicYearStartYear(academicYear);
   if (startYear === null || (branchScope !== null && !branchScope.length)) {
@@ -175,6 +176,12 @@ async function getAcademicYearBounds(
       limit: "1000",
       month: `in.(${academicMonths.map((month) => `"${month}"`).join(",")})`,
     });
+    if (selectedMonth) {
+      const monthYear = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].includes(selectedMonth)
+        ? startYear
+        : startYear + 1;
+      params.set("month", `eq.${selectedMonth} ${monthYear}`);
+    }
     Object.entries(branchFilters).forEach(([key, value]) => params.set(key, value));
     return params;
   };
@@ -232,158 +239,204 @@ async function readRpc<T>(functionName: string, body: Record<string, unknown> = 
   return (await response.json()) as T;
 }
 
+function isMissingRpcError(error: unknown) {
+  return error instanceof Error && (error.message.includes("PGRST202") || error.message.includes("PGRST205"));
+}
+
+async function getAgentAnalyticsLocal(
+  filters: {
+    academicYear?: string;
+    branchId?: number;
+    month?: string;
+    fromDate?: string;
+    toDate?: string;
+  },
+  scope: DashboardBranchScope,
+) {
+  if (scope !== null && !scope.length) return [];
+  const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
+  const [transactions, agents, branches] = await Promise.all([
+    fetchAll<AnalyticsTransaction>(
+      "t_revenue_txn",
+      "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
+      branchQuery(scope, selectedBranchId),
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+    fetchAll<AnalyticsAgent>("t_agent", "agent_id,agent_name", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+    fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name", branchQuery(scope, selectedBranchId), { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+  ]);
+  const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
+  const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
+  const grouped = new Map<string, {
+    agent: string;
+    branch: string;
+    schools: Set<string>;
+    revenueNonBulkBuying: number;
+    revenueNewTxnNonBulkBuying: number;
+    newTxnNonBulkBuying: number;
+    transactionsNonBulkBuying: number;
+  }>();
+  for (const row of transactions) {
+    if (row.agent_id === null || row.is_bulkbuying ||
+      (filters.academicYear && academicYearFromMonth(row.month) !== filters.academicYear) ||
+      (filters.month && row.month.split(" ")[0] !== filters.month) ||
+      !dateMatches(row, filters.fromDate, filters.toDate)) continue;
+    const key = `${row.agent_id}:${row.branch_id ?? "null"}`;
+    const current = grouped.get(key) ?? {
+      agent: agentById.get(row.agent_id) ?? `Agent #${row.agent_id}`,
+      branch: row.branch_id === null ? "(empty)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
+      schools: new Set<string>(),
+      revenueNonBulkBuying: 0,
+      revenueNewTxnNonBulkBuying: 0,
+      newTxnNonBulkBuying: 0,
+      transactionsNonBulkBuying: 0,
+    };
+    current.revenueNonBulkBuying += parseRevenue(row.revenue);
+    current.transactionsNonBulkBuying += 1;
+    if (row.is_newtxn) {
+      current.revenueNewTxnNonBulkBuying += parseRevenue(row.revenue);
+      current.newTxnNonBulkBuying += 1;
+    }
+    if (row.npsn) current.schools.add(row.npsn);
+    grouped.set(key, current);
+  }
+  return Array.from(grouped.values())
+    .map((row) => ({
+      agent: row.agent,
+      branch: row.branch,
+      schools: row.schools.size,
+      revenueNonBulkBuying: row.revenueNonBulkBuying,
+      revenueNewTxnNonBulkBuying: row.revenueNewTxnNonBulkBuying,
+      newTxnNonBulkBuying: row.newTxnNonBulkBuying,
+      transactionsNonBulkBuying: row.transactionsNonBulkBuying,
+    }))
+    .sort((a, b) => b.revenueNonBulkBuying - a.revenueNonBulkBuying || a.agent.localeCompare(b.agent));
+}
+
 export async function getAgentAnalytics(filters: {
   academicYear?: string;
   branchId?: number;
+  month?: string;
   fromDate?: string;
   toDate?: string;
 }, branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
   if (scope !== null) {
-    if (!scope.length) return [];
-    const [transactions, agents, branches] = await Promise.all([
-      fetchAll<AnalyticsTransaction>(
-        "t_revenue_txn",
-        "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
-        branchQuery(scope, selectedBranchId),
-        { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-      ),
-      fetchAll<AnalyticsAgent>("t_agent", "agent_id,agent_name", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
-      fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name", branchQuery(scope, selectedBranchId), { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
-    ]);
-    const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
-    const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
-    const grouped = new Map<string, {
-      agent: string;
-      branch: string;
-      schools: Set<string>;
-      revenueNonBulkBuying: number;
-      revenueNewTxnNonBulkBuying: number;
-      newTxnNonBulkBuying: number;
-      transactionsNonBulkBuying: number;
-    }>();
-    for (const row of transactions) {
-      if (row.agent_id === null || row.is_bulkbuying ||
-        (filters.academicYear && academicYearFromMonth(row.month) !== filters.academicYear) ||
-        !dateMatches(row, filters.fromDate, filters.toDate)) continue;
-      const key = `${row.agent_id}:${row.branch_id ?? "null"}`;
-      const current = grouped.get(key) ?? {
-        agent: agentById.get(row.agent_id) ?? `Agent #${row.agent_id}`,
-        branch: row.branch_id === null ? "(empty)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
-        schools: new Set<string>(),
-        revenueNonBulkBuying: 0,
-        revenueNewTxnNonBulkBuying: 0,
-        newTxnNonBulkBuying: 0,
-        transactionsNonBulkBuying: 0,
-      };
-      current.revenueNonBulkBuying += parseRevenue(row.revenue);
-      current.transactionsNonBulkBuying += 1;
-      if (row.is_newtxn) {
-        current.revenueNewTxnNonBulkBuying += parseRevenue(row.revenue);
-        current.newTxnNonBulkBuying += 1;
-      }
-      if (row.npsn) current.schools.add(row.npsn);
-      grouped.set(key, current);
-    }
-    return Array.from(grouped.values())
-      .map((row) => ({
-        agent: row.agent,
-        branch: row.branch,
-        schools: row.schools.size,
-        revenueNonBulkBuying: row.revenueNonBulkBuying,
-        revenueNewTxnNonBulkBuying: row.revenueNewTxnNonBulkBuying,
-        newTxnNonBulkBuying: row.newTxnNonBulkBuying,
-        transactionsNonBulkBuying: row.transactionsNonBulkBuying,
-      }))
-      .sort((a, b) => b.revenueNonBulkBuying - a.revenueNonBulkBuying || a.agent.localeCompare(b.agent));
+    return getAgentAnalyticsLocal(filters, scope);
   }
-  const rows = await readRpc<AgentAnalyticsRow[]>("get_agent_performance", {
-    p_academic_year: filters.academicYear || null,
-    p_branch_id: filters.branchId ?? null,
-    p_from_date: filters.fromDate || null,
-    p_to_date: filters.toDate || null,
-  });
-  return rows.map((row) => ({
-    agent: row.agent,
-    branch: row.branch,
-    schools: Number(row.schools),
-    revenueNonBulkBuying: Number(row.revenueNonBulkBuying),
-    revenueNewTxnNonBulkBuying: Number(row.revenueNewTxnNonBulkBuying),
-    newTxnNonBulkBuying: Number(row.newTxnNonBulkBuying),
-    transactionsNonBulkBuying: Number(row.transactionsNonBulkBuying),
-  }));
+  try {
+    const rows = await readRpc<AgentAnalyticsRow[]>("get_agent_performance", {
+      p_academic_year: filters.academicYear || null,
+      p_branch_id: filters.branchId ?? null,
+      p_from_date: filters.fromDate || null,
+      p_to_date: filters.toDate || null,
+      p_month: filters.month || null,
+    });
+    return rows.map((row) => ({
+      agent: row.agent,
+      branch: row.branch,
+      schools: Number(row.schools),
+      revenueNonBulkBuying: Number(row.revenueNonBulkBuying),
+      revenueNewTxnNonBulkBuying: Number(row.revenueNewTxnNonBulkBuying),
+      newTxnNonBulkBuying: Number(row.newTxnNonBulkBuying),
+      transactionsNonBulkBuying: Number(row.transactionsNonBulkBuying),
+    }));
+  } catch (error) {
+    if (!isMissingRpcError(error)) throw error;
+    return getAgentAnalyticsLocal(filters, scope);
+  }
+}
+
+async function getProductAnalyticsLocal(
+  filters: {
+    academicYear?: string;
+    branchId?: number;
+    month?: string;
+    fromDate?: string;
+    toDate?: string;
+  },
+  scope: DashboardBranchScope,
+) {
+  if (scope !== null && !scope.length) return [];
+  const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
+  const [transactions, products] = await Promise.all([
+    fetchAll<AnalyticsTransaction>(
+      "t_revenue_txn",
+      "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
+      branchQuery(scope, selectedBranchId),
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+    fetchAll<AnalyticsProduct>("t_revenue_products", "product_id,product_name,product_code", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+  ]);
+  const productById = new Map(products.map((row) => [row.product_id, row]));
+  const grouped = new Map<string, {
+    product: string;
+    bulkBuying: boolean;
+    revenue: number;
+    transactions: number;
+    invoices: Set<string>;
+  }>();
+  for (const row of transactions) {
+    if ((filters.academicYear && academicYearFromMonth(row.month) !== filters.academicYear) ||
+      (filters.month && row.month.split(" ")[0] !== filters.month) ||
+      !dateMatches(row, filters.fromDate, filters.toDate)) continue;
+    const lookup = row.product_id === null ? undefined : productById.get(row.product_id);
+    const product = lookup?.product_name || lookup?.product_code ||
+      (row.product_id === null ? "(Unmapped)" : `Product #${row.product_id}`);
+    const key = `${row.product_id ?? "null"}:${row.is_bulkbuying ? "bulk" : "retail"}`;
+    const current = grouped.get(key) ?? {
+      product,
+      bulkBuying: row.is_bulkbuying,
+      revenue: 0,
+      transactions: 0,
+      invoices: new Set<string>(),
+    };
+    current.revenue += parseRevenue(row.revenue);
+    current.transactions += 1;
+    if (row.invoice) current.invoices.add(row.invoice);
+    grouped.set(key, current);
+  }
+  return Array.from(grouped.values())
+    .map((row) => ({
+      product: row.product,
+      revenue: row.revenue,
+      transactions: row.transactions,
+      invoices: row.invoices.size,
+      bulkBuying: row.bulkBuying,
+    }))
+    .sort((a, b) => b.revenue - a.revenue || a.product.localeCompare(b.product));
 }
 
 export async function getProductAnalytics(filters: {
   academicYear?: string;
   branchId?: number;
+  month?: string;
   fromDate?: string;
   toDate?: string;
 } = {}, branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
   if (scope !== null) {
-    if (!scope.length) return [];
-    const [transactions, products] = await Promise.all([
-      fetchAll<AnalyticsTransaction>(
-        "t_revenue_txn",
-        "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
-        branchQuery(scope, selectedBranchId),
-        { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-      ),
-      fetchAll<AnalyticsProduct>("t_revenue_products", "product_id,product_name,product_code", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
-    ]);
-    const productById = new Map(products.map((row) => [row.product_id, row]));
-    const grouped = new Map<string, {
-      product: string;
-      bulkBuying: boolean;
-      revenue: number;
-      transactions: number;
-      invoices: Set<string>;
-    }>();
-    for (const row of transactions) {
-      if ((filters.academicYear && academicYearFromMonth(row.month) !== filters.academicYear) ||
-        !dateMatches(row, filters.fromDate, filters.toDate)) continue;
-      const lookup = row.product_id === null ? undefined : productById.get(row.product_id);
-      const product = lookup?.product_name || lookup?.product_code ||
-        (row.product_id === null ? "(Unmapped)" : `Product #${row.product_id}`);
-      const key = `${row.product_id ?? "null"}:${row.is_bulkbuying ? "bulk" : "retail"}`;
-      const current = grouped.get(key) ?? {
-        product,
-        bulkBuying: row.is_bulkbuying,
-        revenue: 0,
-        transactions: 0,
-        invoices: new Set<string>(),
-      };
-      current.revenue += parseRevenue(row.revenue);
-      current.transactions += 1;
-      if (row.invoice) current.invoices.add(row.invoice);
-      grouped.set(key, current);
-    }
-    return Array.from(grouped.values())
-      .map((row) => ({
-        product: row.product,
-        revenue: row.revenue,
-        transactions: row.transactions,
-        invoices: row.invoices.size,
-        bulkBuying: row.bulkBuying,
-      }))
-      .sort((a, b) => b.revenue - a.revenue || a.product.localeCompare(b.product));
+    return getProductAnalyticsLocal(filters, scope);
   }
-  const rows = await readRpc<ProductAnalyticsRow[]>("get_product_sales", {
-    p_academic_year: filters.academicYear || null,
-    p_branch_id: filters.branchId ?? null,
-    p_from_date: filters.fromDate || null,
-    p_to_date: filters.toDate || null,
-  });
-  return rows.map((row) => ({
-    product: row.product,
-    revenue: Number(row.revenue),
-    transactions: Number(row.transactions),
-    invoices: Number(row.invoices),
-    bulkBuying: Boolean(row.bulkBuying),
-  }));
+  try {
+    const rows = await readRpc<ProductAnalyticsRow[]>("get_product_sales", {
+      p_academic_year: filters.academicYear || null,
+      p_branch_id: filters.branchId ?? null,
+      p_from_date: filters.fromDate || null,
+      p_to_date: filters.toDate || null,
+      p_month: filters.month || null,
+    });
+    return rows.map((row) => ({
+      product: row.product,
+      revenue: Number(row.revenue),
+      transactions: Number(row.transactions),
+      invoices: Number(row.invoices),
+      bulkBuying: Boolean(row.bulkBuying),
+    }));
+  } catch (error) {
+    if (!isMissingRpcError(error)) throw error;
+    return getProductAnalyticsLocal(filters, scope);
+  }
 }
 
 function productComparisonKey(product: string) {
@@ -403,6 +456,7 @@ export async function getProductRevenueComparisons(
   filters: {
     academicYear?: string;
     branchId?: number;
+    month?: string;
     fromDate?: string;
     toDate?: string;
   },
@@ -425,7 +479,7 @@ export async function getProductRevenueComparisons(
   const resolvedBounds = await Promise.all(
     yearsToResolve.map(async (year) => [
       year,
-      await getAcademicYearBounds(year, scope, selectedBranchId),
+      await getAcademicYearBounds(year, scope, selectedBranchId, filters.month),
     ] as const),
   );
   resolvedBounds.forEach(([year, value]) => bounds.set(year, value));
@@ -433,17 +487,19 @@ export async function getProductRevenueComparisons(
   const currentToDate = filters.toDate ?? bounds.get(currentAcademicYear)?.latestDate ?? undefined;
   const previousFilters = previousYear
     ? {
-        academicYear: previousYear,
-        branchId: selectedBranchId,
-        fromDate: filters.fromDate ? shiftDate(filters.fromDate, -1) : bounds.get(previousYear)?.startDate ?? undefined,
+      academicYear: previousYear,
+      branchId: selectedBranchId,
+      month: filters.month,
+      fromDate: filters.fromDate ? shiftDate(filters.fromDate, -1) : bounds.get(previousYear)?.startDate ?? undefined,
         toDate: currentToDate ? shiftDate(currentToDate, -1) : undefined,
       }
     : null;
   const lastTwoFilters = lastTwoYear
     ? {
-        academicYear: lastTwoYear,
-        branchId: selectedBranchId,
-        fromDate: filters.fromDate ? shiftDate(filters.fromDate, -2) : bounds.get(lastTwoYear)?.startDate ?? undefined,
+      academicYear: lastTwoYear,
+      branchId: selectedBranchId,
+      month: filters.month,
+      fromDate: filters.fromDate ? shiftDate(filters.fromDate, -2) : bounds.get(lastTwoYear)?.startDate ?? undefined,
         toDate: currentToDate ? shiftDate(currentToDate, -2) : undefined,
       }
     : null;

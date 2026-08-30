@@ -12,11 +12,9 @@ export function StudentFilters({
   showDateFilters = true,
 }: {
   options: {
-    academicYears: string[];
     branches: Branch[];
   };
   values: {
-    academicYear: string;
     branchId: string;
     fromDate: string;
     toDate: string;
@@ -33,6 +31,7 @@ export function StudentFilters({
     const next = { ...draft, [key]: value };
     setDraft(next);
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("academicYear");
     Object.entries(next).forEach(([name, currentValue]) => {
       if (currentValue) params.set(name, currentValue);
       else params.delete(name);
@@ -42,7 +41,6 @@ export function StudentFilters({
 
   function reset() {
     setDraft({
-      academicYear: "",
       branchId: "",
       fromDate: "",
       toDate: "",
@@ -58,9 +56,6 @@ export function StudentFilters({
           <span className="text-sm font-semibold text-slate-950">Student Filters</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <select value={draft.academicYear} onChange={(event) => update("academicYear", event.target.value)} aria-label="Academic Year" className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800">
-            {options.academicYears.map((year) => <option key={year} value={year}>{year}</option>)}
-          </select>
           <select value={draft.branchId} onChange={(event) => update("branchId", event.target.value)} aria-label="Branch" className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800">
             <option value="">All branches</option>
             {options.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}

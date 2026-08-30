@@ -7,15 +7,15 @@ import { useState, useTransition } from "react";
 type Branch = { id: string; label: string };
 
 export function AgentFilters({
-  academicYears,
   branches,
+  months,
   values,
 }: {
-  academicYears: string[];
   branches: Branch[];
+  months: string[];
   values: {
-    academicYear: string;
     branchId: string;
+    month: string;
     fromDate: string;
     toDate: string;
   };
@@ -30,10 +30,11 @@ export function AgentFilters({
     const next = { ...draft, [key]: value };
     setDraft(next);
     const params = new URLSearchParams(searchParams.toString());
-    if (next.academicYear) params.set("academicYear", next.academicYear);
-    else params.delete("academicYear");
+    params.delete("academicYear");
     if (next.branchId) params.set("branchId", next.branchId);
     else params.delete("branchId");
+    if (next.month) params.set("month", next.month);
+    else params.delete("month");
     if (next.fromDate) params.set("fromDate", next.fromDate);
     else params.delete("fromDate");
     if (next.toDate) params.set("toDate", next.toDate);
@@ -43,7 +44,10 @@ export function AgentFilters({
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   }
-  function reset() { setDraft({ academicYear: "", branchId: "", fromDate: "", toDate: "" }); startTransition(() => router.replace(pathname, { scroll: false })); }
+  function reset() {
+    setDraft({ branchId: "", month: "", fromDate: "", toDate: "" });
+    startTransition(() => router.replace(pathname, { scroll: false }));
+  }
 
   return (
     <section className="border-y border-slate-200 bg-white">
@@ -54,14 +58,6 @@ export function AgentFilters({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <select
-            value={draft.academicYear}
-            onChange={(event) => update("academicYear", event.target.value)}
-            aria-label="Academic Year"
-            className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-          >
-            {academicYears.map((year) => <option key={year} value={year}>{year}</option>)}
-          </select>
-          <select
             value={draft.branchId}
             onChange={(event) => update("branchId", event.target.value)}
             aria-label="Branch"
@@ -69,6 +65,15 @@ export function AgentFilters({
           >
             <option value="">All branches</option>
             {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
+          </select>
+          <select
+            value={draft.month}
+            onChange={(event) => update("month", event.target.value)}
+            aria-label="Month"
+            className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          >
+            <option value="">All months</option>
+            {months.map((month) => <option key={month} value={month}>{month}</option>)}
           </select>
           <label className="flex items-center gap-1.5">
             <span className="text-xs text-slate-500">From date</span>

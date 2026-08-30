@@ -1,6 +1,9 @@
 import { cache } from "react";
 import { supabaseRpcFetch, supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
-import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import {
+  getLatestRevenuePeriodContext,
+  getRevenueAcademicYearOptions,
+} from "@/lib/revenue-filters";
 import {
   DashboardBranchScope,
   getDashboardBranchScope,
@@ -75,7 +78,6 @@ const scopedSnapshotFetchInit: SupabaseFetchInit = {
   next: { revalidate: 30, tags: ["revenue-dashboard"] },
 };
 
-let latestPeriodRpcUnavailable = false;
 let branchSummaryRpcUnavailable = false;
 
 async function fetchAll<T>(
@@ -338,16 +340,6 @@ const academicYearMonthOrder = [
   "Jun",
 ];
 
-function previousAcademicYear(academicYear: string | undefined, years: string[]) {
-  if (!academicYear) return null;
-
-  const match = academicYear.match(/^(\d{2})\/(\d{2})$/);
-  if (!match) return null;
-
-  const previous = `${String((Number(match[1]) + 99) % 100).padStart(2, "0")}/${match[1]}`;
-  return years.includes(previous) ? previous : null;
-}
-
 function previousAcademicYearFrom(academicYear: string) {
   const match = academicYear.match(/^(\d{2})\/(\d{2})$/);
   if (!match) return null;
@@ -568,11 +560,19 @@ export async function getRevenueGrowthSameDate(
   branchScope?: DashboardBranchScope,
 ): Promise<RevenueGrowthComparison> {
   const scope = branchScope ?? await getDashboardBranchScope();
-  const academicYearOptions = await getRevenueAcademicYearOptions();
+  const [academicYearOptions, latestPeriod] = await Promise.all([
+    getRevenueAcademicYearOptions(),
+    getLatestRevenuePeriodContext(scope),
+  ]);
+  // Keep an explicitly supplied year (especially the latest year returned by
+  // t_revenue_txn) even when the cached options list has not refreshed yet.
+  const requestedAcademicYear = filters.academicYear?.trim();
   const selectedAcademicYear =
-    filters.academicYear && academicYearOptions.some((option) => option.id === filters.academicYear)
-      ? filters.academicYear
-      : academicYearOptions[0]?.id;
+    requestedAcademicYear &&
+    (academicYearOptions.some((option) => option.id === requestedAcademicYear) ||
+      requestedAcademicYear === latestPeriod.academicYear)
+      ? requestedAcademicYear
+      : latestPeriod.academicYear || academicYearOptions[0]?.id;
   const selectedFilters = {
     ...filters,
     academicYear: selectedAcademicYear,
@@ -617,11 +617,20 @@ export async function getDashboardData(
   branchScope?: DashboardBranchScope,
 ): Promise<DashboardData> {
   const scope = branchScope ?? await getDashboardBranchScope();
-  const academicYearOptions = await getRevenueAcademicYearOptions();
+  const [academicYearOptions, latestPeriod] = await Promise.all([
+    getRevenueAcademicYearOptions(),
+    getLatestRevenuePeriodContext(scope),
+  ]);
+  // The active year is a transaction-data concern, not a lookup-table
+  // concern. Preserve the caller's explicit value and otherwise use the
+  // latest period discovered from t_revenue_txn.
+  const requestedAcademicYear = filters.academicYear?.trim();
   const selectedAcademicYear =
-    filters.academicYear && academicYearOptions.some((option) => option.id === filters.academicYear)
-      ? filters.academicYear
-      : academicYearOptions[0]?.id;
+    requestedAcademicYear &&
+    (academicYearOptions.some((option) => option.id === requestedAcademicYear) ||
+      requestedAcademicYear === latestPeriod.academicYear)
+      ? requestedAcademicYear
+      : latestPeriod.academicYear || academicYearOptions[0]?.id;
   const selectedFilters = {
     ...filters,
     academicYear: selectedAcademicYear,
@@ -632,7 +641,7 @@ export async function getDashboardData(
   // non-admin uses the legacy server-side aggregation with an explicit branch
   // scope because the existing RPC is security-definer/service-role backed.
   if (scope !== null) {
-    return getDashboardDataLegacy(selectedFilters, scope);
+    return getDashboardDataLegacy(selectedFilters, scope, academicYearOptions);
   }
 
   const response = await supabaseRpcFetch(
@@ -661,74 +670,16 @@ export async function getDashboardData(
     throw new Error(`Dashboard RPC failed: ${errorText}`);
   }
 
-  return getDashboardDataLegacy(selectedFilters, scope);
+  return getDashboardDataLegacy(selectedFilters, scope, academicYearOptions);
 }
 
 export async function getLatestRevenuePaymentDate(branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  if (scope !== null && !scope.length) return { latestDate: null, startDate: null };
-  if (!latestPeriodRpcUnavailable) {
-    const periodResponse = await supabaseRpcFetch(
-      "get_latest_revenue_period",
-      { p_branch_ids: scope },
-      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-    );
-    if (periodResponse.ok) {
-      const payload = await periodResponse.json() as {
-        latestDate?: string | null;
-        startDate?: string | null;
-      };
-      if (
-        Object.prototype.hasOwnProperty.call(payload, "latestDate") &&
-        Object.prototype.hasOwnProperty.call(payload, "startDate")
-      ) {
-        return {
-          latestDate: payload.latestDate ?? null,
-          startDate: payload.startDate ?? null,
-        };
-      }
-    } else {
-      const errorText = await periodResponse.text();
-      if (!errorText.includes("PGRST202") && !errorText.includes("PGRST205")) {
-        throw new Error(`Latest revenue period RPC failed: ${errorText}`);
-      }
-      latestPeriodRpcUnavailable = true;
-    }
-  }
-  // Keep local development usable while the migration has not yet been
-  // applied. Fall back to the two existing REST reads below.
-
-  const params = new URLSearchParams({
-    select: "payment_date,month,academic_year,branch_id",
-    order: "payment_date.desc",
-    limit: "1",
-  });
-  if (scope !== null) {
-    params.set("branch_id", `in.(${scope.join(",")})`);
-  }
-  const response = await supabaseRestFetch(
-    `t_revenue_txn?${params.toString()}`,
-    { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-  );
-  if (!response.ok) throw new Error(`Latest revenue date request failed: ${await response.text()}`);
-  const rows = (await response.json()) as Array<{ payment_date?: string; month?: string; academic_year?: string }>;
-  const latest = rows[0];
-  if (!latest?.payment_date || !latest.academic_year) return { latestDate: latest?.payment_date ?? null, startDate: null };
-  const startParams = new URLSearchParams({
-    select: "payment_date",
-    academic_year: `eq.${latest.academic_year}`,
-    month: "ilike.Jul %",
-    order: "payment_date.asc",
-    limit: "1",
-  });
-  if (scope !== null) startParams.set("branch_id", `in.(${scope.join(",")})`);
-  const startResponse = await supabaseRestFetch(
-    `t_revenue_txn?${startParams.toString()}`,
-    { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-  );
-  if (!startResponse.ok) throw new Error(`Revenue start date request failed: ${await startResponse.text()}`);
-  const starts = (await startResponse.json()) as Array<{ payment_date?: string }>;
-  return { latestDate: latest.payment_date, startDate: starts[0]?.payment_date ?? null };
+  const context = await getLatestRevenuePeriodContext(scope);
+  return {
+    latestDate: context.latestPaymentDate,
+    startDate: context.startDate,
+  };
 }
 
 export async function getBulkBuyingGrowth(
@@ -1031,14 +982,14 @@ function normalizeDashboardPayload(payload: Record<string, unknown>): DashboardD
 async function getDashboardDataLegacy(
   filters: DashboardFilters = {},
   branchScope: DashboardBranchScope = null,
+  academicYearOptions: FilterOption[] = [],
 ): Promise<DashboardData> {
-  const [grades, products, agents, branches, regions, academicYears, annualTargets, monthlyTargets] = await Promise.all([
+  const [grades, products, agents, branches, regions, annualTargets, monthlyTargets] = await Promise.all([
     fetchAll<GradeLookup>("t_grade", "grade_id,grade"),
     fetchAll<ProductLookup>("t_revenue_products", "product_id,product_code"),
     fetchAll<AgentLookup>("t_agent", "agent_id,agent_name"),
     fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id"),
     fetchAll<RegionLookup>("t_region", "region_id,region_name"),
-    fetchAll<{ academic_year: string }>("t_academic_year", "academic_year"),
     fetchAll<RevenueAnnualTargetLookup>("t_revenue_annual_target", "academic_year,branch_id,target_revenue"),
     fetchAll<RevenueMonthlyTargetLookup>("t_revenue_monthly_target", "academic_year,branch_id,month_number,target_revenue"),
   ]);
@@ -1054,9 +1005,14 @@ async function getDashboardDataLegacy(
       : branches
           .filter((branch) => branch.region_id === filters.regionId && availableBranchIds.includes(branch.branch_id))
           .map((branch) => branch.branch_id);
-  const allAcademicYears = academicYears.map((row) => row.academic_year);
-  const previousYear = previousAcademicYear(filters.academicYear, allAcademicYears);
-  const lastTwoYear = previousAcademicYear(previousYear ?? undefined, allAcademicYears);
+  // Revenue periods are derived from t_revenue_txn.month. Do not make the
+  // comparison years depend on t_academic_year: the active period is
+  // intentionally discovered from transaction data and the lookup table can
+  // lag behind a newly imported academic year.
+  const previousYear = previousAcademicYearFrom(filters.academicYear ?? "");
+  const lastTwoYear = previousYear
+    ? previousAcademicYearFrom(previousYear)
+    : null;
   const canUseUnfilteredSnapshot = !filters.regionId &&
     !filters.branchId &&
     !filters.month &&
@@ -1289,9 +1245,7 @@ async function getDashboardDataLegacy(
 
   return {
     filters: {
-      academicYears: academicYears
-        .sort((a, b) => b.academic_year.localeCompare(a.academic_year))
-        .map((row): FilterOption => ({ id: row.academic_year, label: row.academic_year })),
+      academicYears: academicYearOptions,
       regions: regions
         .filter((row) => branchScope === null || availableBranches.some((branch) => branch.region_id === row.region_id))
         .sort((a, b) => a.region_name.localeCompare(b.region_name))

@@ -4,7 +4,7 @@ import { ProductFilters } from "@/components/product-filters";
 import { ProductRevenueChart } from "@/components/revenue-charts";
 import { getProductAnalytics, getProductRevenueComparisons } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
-import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
@@ -30,22 +30,23 @@ export default async function ProductsPage({
   if (branchScope !== null) {
     branchParams.set("branch_id", branchScope.length ? `in.(${branchScope.join(",")})` : "in.(-1)");
   }
-  const [academicYears, branchesResponse] = await Promise.all([
-    getRevenueAcademicYearOptions(),
+  const [periodContext, branchesResponse] = await Promise.all([
+    getLatestRevenuePeriodContext(branchScope),
     supabaseRestFetch(`t_branch?${branchParams.toString()}`),
   ]);
   const branches = branchesResponse.ok
     ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string }[])
         .map((row) => ({ id: String(row.branch_id), label: row.branch_name }))
     : [];
-  const academicYear = academicYears.some((year) => year.id === value("academicYear"))
-    ? value("academicYear")
-    : academicYears[0]?.id ?? "";
+  const academicYear = periodContext.academicYear ?? "";
+  const requestedMonth = value("month");
+  const month = periodContext.months.some((option) => option.id === requestedMonth)
+    ? requestedMonth
+    : "";
   const productFilters = {
     academicYear,
     branchId: value("branchId") ? Number(value("branchId")) : undefined,
-    fromDate: value("fromDate") || undefined,
-    toDate: value("toDate") || undefined,
+    month: month || undefined,
   };
   const [rows, productComparisons] = await Promise.all([
     getProductAnalytics(productFilters, branchScope),
@@ -165,27 +166,27 @@ export default async function ProductsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">Product Performance</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">Revenue, transaction, and invoice contribution by product.</p>
+        <p className="mt-2 text-sm text-slate-600">
+          Revenue, transaction, and invoice contributions by product for academic year {academicYear || "-"}.
+        </p>
       </header>
       <ProductFilters
-        academicYears={academicYears.map((year) => year.id)}
         branches={branches}
+        months={periodContext.months.map((option) => option.id)}
         values={{
-          academicYear,
           branchId: value("branchId"),
-          fromDate: value("fromDate"),
-          toDate: value("toDate"),
+          month,
         }}
       />
-      <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {renderProductCard("Non Bulk Buying", nonBulkRows, true)}
-        {renderProductCard("Bulk Buying", bulkRows)}
-      </section>
       <ProductRevenueChart
         title="Non Bulk Buying Revenue by Product"
         description="Revenue chart from the Non Bulk Buying table based on the active filters."
         data={nonBulkChartData}
       />
+      <section className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
+        {renderProductCard("Non Bulk Buying", nonBulkRows, true)}
+        {renderProductCard("Bulk Buying", bulkRows)}
+      </section>
       <p className="text-xs text-slate-500">Total {formatNumber(rows.length)} active product rows.</p>
     </div>
   );

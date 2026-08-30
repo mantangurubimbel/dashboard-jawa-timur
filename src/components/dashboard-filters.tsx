@@ -7,13 +7,11 @@ import { BranchFilterOption, FilterOption } from "@/lib/types";
 
 type DashboardFiltersProps = {
   options: {
-    academicYears: FilterOption[];
     regions: FilterOption[];
     branches: BranchFilterOption[];
     months: FilterOption[];
   };
   values: {
-    academicYear: string;
     regionId: string;
     branchId: string;
     month: string;
@@ -33,6 +31,11 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
   function replaceFilters(nextValues: typeof values) {
     setDraftValues(nextValues);
     const params = new URLSearchParams(searchParams.toString());
+    params.delete("academicYear");
+    if (!showDateFilters) {
+      params.delete("fromDate");
+      params.delete("toDate");
+    }
 
     for (const [key, value] of Object.entries(nextValues)) {
       if (value) params.set(key, value);
@@ -69,7 +72,6 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
 
   function resetFilters() {
     setDraftValues({
-      academicYear: "",
       regionId: "",
       branchId: "",
       month: "",
@@ -94,17 +96,6 @@ export function DashboardFilters({ options, values, showDateFilters = true }: Da
         </div>
 
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <label className="flex items-center gap-1.5">
-            <select
-              value={draftValues.academicYear}
-              onChange={(event) => updateFilter("academicYear", event.target.value)}
-              className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
-            >
-              {options.academicYears.map((option) => (
-                <option key={option.id} value={option.id}>{option.label}</option>
-              ))}
-            </select>
-          </label>
           <label className="flex items-center gap-1.5">
             <select
               value={draftValues.regionId}

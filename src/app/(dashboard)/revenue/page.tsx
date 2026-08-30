@@ -21,6 +21,7 @@ import {
   getRevenueGrowthSameDate,
 } from "@/lib/local-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
+import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -47,16 +48,18 @@ export async function RevenuePageContent({
     const parsed = Number(raw);
     return Number.isFinite(parsed) ? parsed : undefined;
   };
-  const requestedAcademicYear = value("academicYear");
+  const branchScope = await getDashboardBranchScope();
+  const periodContext = await getLatestRevenuePeriodContext(branchScope);
+  const requestedMonth = value("month");
+  const selectedMonth = periodContext.months.some((option) => option.id === requestedMonth)
+    ? requestedMonth ?? ""
+    : "";
   const dashboardFilters = {
-    academicYear: requestedAcademicYear || undefined,
+    academicYear: periodContext.academicYear ?? undefined,
     regionId: numericValue("regionId"),
     branchId: numericValue("branchId"),
-    month: value("month") || undefined,
-    fromDate: value("fromDate") || undefined,
-    toDate: value("toDate") || undefined,
+    month: selectedMonth || undefined,
   };
-  const branchScope = await getDashboardBranchScope();
   const [data, sameDateGrowth] = await Promise.all([
     getDashboardData(dashboardFilters, branchScope),
     getRevenueGrowthSameDate(dashboardFilters, branchScope),
@@ -65,15 +68,11 @@ export async function RevenuePageContent({
     data.monthlyRevenueComparison.currentAcademicYear ?? "",
     numericValue("regionId"),
     numericValue("branchId"),
-    value("month") || undefined,
+    selectedMonth || undefined,
+    branchScope,
   );
   const { kpis } = data;
-  const selectedAcademicYear =
-    data.filters.academicYears.some((option) => option.id === requestedAcademicYear)
-      ? requestedAcademicYear ?? ""
-      : data.filters.academicYears[0]?.id ?? "";
-  const selectedMonth = showDataActions ? value("month") : "";
-  const selectedMonthTarget = selectedMonth
+  const selectedMonthTarget = showDataActions && selectedMonth
     ? data.monthlyRevenueComparison.rows.find((row) => row.month === selectedMonth)?.targetRevenue ?? 0
     : kpis.targetAnnualRevenue;
   const targetLabel = showDataActions && selectedMonth ? "Target" : "Annual Target";
@@ -117,14 +116,13 @@ export async function RevenuePageContent({
         <DashboardFilters
           showDateFilters={false}
           key={JSON.stringify(params)}
-          options={data.filters}
+          options={{ ...data.filters, months: periodContext.months }}
           values={{
-            academicYear: selectedAcademicYear,
             regionId: value("regionId") ?? "",
             branchId: value("branchId") ?? "",
-            month: value("month") ?? "",
-            fromDate: value("fromDate") ?? "",
-            toDate: value("toDate") ?? "",
+            month: selectedMonth,
+            fromDate: "",
+            toDate: "",
           }}
         />
       </>

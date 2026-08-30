@@ -6,8 +6,8 @@ import { RegionalRevenueSourceChart } from "@/components/revenue-charts";
 import { StudentRankingChart, StudentTrendChart } from "@/components/student-charts";
 import { SummaryTable } from "@/components/summary-table";
 import { formatCurrency, formatNumber } from "@/lib/format";
-import { getBranchRevenueSummary, getBulkBuyingGrowth, getDashboardData, getLatestRevenuePaymentDate } from "@/lib/local-data";
-import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import { getBranchRevenueSummary, getBulkBuyingGrowth, getDashboardData } from "@/lib/local-data";
+import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { getStudentRevenueSummary } from "@/lib/student-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
@@ -16,17 +16,13 @@ export const revalidate = 0;
 
 export default async function ExecutiveSummaryPage() {
   const branchScope = await getDashboardBranchScope();
-  // The AYtD dashboard needs the latest payment bounds to preserve the
-  // existing metric semantics, so resolve the period before this read. Warm
-  // the shared academic-year lookup at the same time; getDashboardData will
-  // reuse its request-scoped result.
-  const [revenuePeriod] = await Promise.all([
-    getLatestRevenuePaymentDate(branchScope),
-    getRevenueAcademicYearOptions(),
-  ]);
+  // The AYtD dashboard uses the latest transaction period from t_revenue_txn.
+  // The cumulative chart below still receives a separate full-year read.
+  const revenuePeriod = await getLatestRevenuePeriodContext(branchScope);
   const revenue = await getDashboardData({
+    academicYear: revenuePeriod.academicYear ?? undefined,
     fromDate: revenuePeriod.startDate ?? undefined,
-    toDate: revenuePeriod.latestDate ?? undefined,
+    toDate: revenuePeriod.latestPaymentDate ?? undefined,
   }, branchScope);
   const academicYear = revenue.monthlyRevenueComparison.currentAcademicYear ?? "-";
   // The cumulative chart needs the complete LY curve (through June), while
@@ -36,8 +32,8 @@ export default async function ExecutiveSummaryPage() {
   // instead of the sum of every dashboard section.
   const [fullYearRevenue, bulk, students, topBranchRevenue] = await Promise.all([
     getDashboardData({ academicYear }, branchScope),
-    revenuePeriod.startDate && revenuePeriod.latestDate && academicYear !== "-"
-      ? getBulkBuyingGrowth(academicYear, revenuePeriod.startDate, revenuePeriod.latestDate, branchScope)
+    revenuePeriod.startDate && revenuePeriod.latestPaymentDate && academicYear !== "-"
+      ? getBulkBuyingGrowth(academicYear, revenuePeriod.startDate, revenuePeriod.latestPaymentDate, branchScope)
       : Promise.resolve({ currentRevenue: 0, previousRevenue: 0 }),
     getStudentRevenueSummary(academicYear, branchScope),
     getBranchRevenueSummary(academicYear, branchScope),

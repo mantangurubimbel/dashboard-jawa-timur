@@ -3,7 +3,7 @@ import { SchoolFilters } from "@/components/school-filters";
 import { SchoolAccountsTable } from "@/components/school-accounts-table";
 import { getSchoolAnalytics } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
-import { getRevenueAcademicYearOptions } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
 export const dynamic = "force-dynamic";
@@ -19,10 +19,8 @@ export default async function SchoolsPage({
     return Array.isArray(raw) ? raw[0] ?? "" : raw ?? "";
   };
   const branchScope = await getDashboardBranchScope();
-  const academicYears = await getRevenueAcademicYearOptions();
-  const academicYear = academicYears.some((year) => year.id === value("academicYear"))
-    ? value("academicYear")
-    : academicYears[0]?.id ?? "";
+  const periodContext = await getLatestRevenuePeriodContext(branchScope);
+  const academicYear = periodContext.academicYear ?? "";
   const [rows, bulkRows] = await Promise.all([
     getSchoolAnalytics({
       academicYear,
@@ -45,11 +43,12 @@ export default async function SchoolsPage({
             <h1 className="mt-1 text-3xl font-semibold text-slate-950">By Revenue</h1>
           </div>
         </div>
-        <p className="mt-2 text-sm text-slate-600">School ranking by total transaction revenue.</p>
+        <p className="mt-2 text-sm text-slate-600">
+          School ranking by total transaction revenue for academic year {academicYear || "-"}.
+        </p>
       </header>
       <SchoolFilters
-        academicYears={academicYears.map((year) => year.id)}
-        values={{ academicYear, level: value("level") }}
+        values={{ level: value("level") }}
       />
       <SchoolAccountsTable rows={rows} />
       <SchoolAccountsTable

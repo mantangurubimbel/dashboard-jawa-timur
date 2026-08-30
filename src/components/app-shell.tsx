@@ -162,13 +162,13 @@ export function AppShell({
         }`}
       >
         <div className="flex h-16 items-center border-b border-slate-200 px-4">
-          <Link href="/revenue" className="flex min-w-0 items-center gap-3">
+          <Link href="/executive-summary" className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-sm font-bold text-white">
               JT
             </span>
             {!collapsed ? (
               <span className="truncate text-sm font-semibold text-slate-950">
-                Jawa Timur Revenue
+                Jawa Timur Dashboard
               </span>
             ) : null}
           </Link>
@@ -211,7 +211,7 @@ export function AppShell({
                   JT
                 </span>
                 <span className="truncate text-sm font-semibold text-slate-950">
-                  Jawa Timur Revenue
+                  Jawa Timur Dashboard
                 </span>
               </Link>
               <button
@@ -246,9 +246,9 @@ export function AppShell({
             <span className="flex h-8 w-8 items-center justify-center rounded-md bg-teal-700 text-xs font-bold text-white">
               JT
             </span>
-            <span className="text-sm font-semibold text-slate-950">Revenue Dashboard</span>
+            <span className="text-sm font-semibold text-slate-950">Dashboard Overview</span>
           </div>
-          <div className="hidden text-sm text-slate-500 lg:block">Jawa Timur · Revenue Operations</div>
+          <div className="hidden text-sm text-slate-500 lg:block">Dashboard Overview</div>
           <div className="flex items-center gap-3">
             <span className="hidden max-w-56 truncate text-sm font-semibold text-slate-700 sm:block">
               {userName || email || "Active account"}
