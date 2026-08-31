@@ -8,7 +8,7 @@ type Theme = "light" | "dark";
 function readTheme(): Theme {
   const savedTheme = window.localStorage.getItem("dashboard-theme");
   if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return "dark";
 }
 
 function subscribeToTheme(callback: () => void) {
@@ -17,7 +17,7 @@ function subscribeToTheme(callback: () => void) {
 }
 
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => "light");
+  const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => "dark");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;

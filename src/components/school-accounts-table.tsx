@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatCurrency } from "@/lib/format";
@@ -34,19 +34,15 @@ export function SchoolAccountsTable({
   const updatePopoverPosition = useCallback((element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     const width = 320;
-    const estimatedHeight = Math.min(360, 96 + (hoveredSchool?.branches.length ?? 1) * 28);
     const gap = 8;
-    const top =
-      rect.bottom + estimatedHeight + gap <= window.innerHeight
-        ? rect.bottom + gap
-        : Math.max(gap, rect.top - estimatedHeight - gap);
+    const top = Math.max(gap, Math.round(window.innerHeight / 2));
     const left = Math.min(
-      Math.max(gap, rect.right - width),
+      Math.max(gap, rect.right + gap),
       Math.max(gap, window.innerWidth - width - gap),
     );
 
     setPopoverPosition({ top, left });
-  }, [hoveredSchool]);
+  }, []);
 
   useEffect(() => {
     if (!hoveredSchool) return;
@@ -90,29 +86,26 @@ export function SchoolAccountsTable({
                 {(page - 1) * rowsPerPage + index + 1}
               </td>
               <td
-                className="px-3 py-2 font-mono text-xs text-slate-500"
-              >
-                {row.npsn}
-              </td>
-              <td
                 className="px-3 py-2"
-                data-school-anchor={row.npsn}
-                onMouseEnter={(event) => {
-                  setHoveredSchool(row);
-                  updatePopoverPosition(event.currentTarget);
-                }}
-                onMouseLeave={(event) => {
-                  const relatedTarget = event.relatedTarget as Node | null;
-                  if (!relatedTarget || !(relatedTarget as HTMLElement).closest?.("[data-school-popover]")) {
-                    setHoveredSchool(null);
-                  }
-                }}
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-800">{row.school}</span>
-                  <Info className="h-3.5 w-3.5 text-slate-400" aria-hidden />
-                </div>
+                <span
+                  data-school-anchor={row.npsn}
+                  className="font-mono text-xs text-slate-500 hover:text-teal-700"
+                  onMouseEnter={(event) => {
+                    setHoveredSchool(row);
+                    updatePopoverPosition(event.currentTarget);
+                  }}
+                  onMouseLeave={(event) => {
+                    const relatedTarget = event.relatedTarget as Node | null;
+                    if (!relatedTarget || !(relatedTarget as HTMLElement).closest?.("[data-school-popover]")) {
+                      setHoveredSchool(null);
+                    }
+                  }}
+                >
+                  {row.npsn}
+                </span>
               </td>
+              <td className="px-3 py-2 font-medium text-slate-800">{row.school}</td>
               <td className="px-3 py-2 text-slate-600">{row.city}</td>
               <td className="px-3 py-2 text-right font-semibold text-teal-700">{formatCurrency(row.revenue)}</td>
             </tr>
@@ -169,8 +162,8 @@ export function SchoolAccountsTable({
         ? createPortal(
             <div
               data-school-popover
-              className="pointer-events-auto fixed z-[100] w-80 rounded-md border border-slate-200 bg-white p-3 text-left shadow-xl"
-              style={{ top: popoverPosition.top, left: popoverPosition.left }}
+              className="pointer-events-auto fixed z-[100] max-h-[calc(100vh-1rem)] w-80 max-w-[calc(100vw-1rem)] overflow-auto rounded-md border border-slate-200 bg-white p-3 text-left shadow-xl"
+              style={{ top: popoverPosition.top, left: popoverPosition.left, transform: "translateY(-50%)", maxHeight: "calc(100vh - 16px)" }}
               onMouseLeave={() => setHoveredSchool(null)}
               onMouseEnter={() => setHoveredSchool(hoveredSchool)}
             >

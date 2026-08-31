@@ -32,20 +32,30 @@ function Ratio({
 }) {
   const samePeriodRatio = samePeriod > 0 ? current / samePeriod : null;
   const endOfYearRatio = endOfYear > 0 ? current / endOfYear : null;
-  const samePeriodIsUp = samePeriodRatio !== null && samePeriodRatio > 1;
-  const endOfYearIsDown = endOfYearRatio !== null && endOfYearRatio < 1;
+
+  const renderRatio = (ratio: number | null) => {
+    const isUp = ratio !== null && ratio > 1;
+    const isDown = ratio !== null && ratio < 1;
+    const className = isUp
+      ? "inline-flex items-center gap-0.5 text-emerald-700"
+      : isDown
+        ? "inline-flex items-center gap-0.5 text-rose-700"
+        : "text-slate-600";
+
+    return (
+      <span className={className}>
+        {isUp ? <ArrowUp className="h-3 w-3" aria-hidden /> : null}
+        {isDown ? <ArrowDown className="h-3 w-3" aria-hidden /> : null}
+        {ratio === null ? "-" : `${ratio.toFixed(2)}x`}
+      </span>
+    );
+  };
 
   return (
     <span className="inline-flex items-center justify-center gap-1 whitespace-nowrap">
-      <span className={samePeriodIsUp ? "inline-flex items-center gap-0.5 text-emerald-700" : "text-slate-600"}>
-        {samePeriodIsUp ? <ArrowUp className="h-3 w-3" aria-hidden /> : null}
-        {samePeriodRatio === null ? "-" : `${samePeriodRatio.toFixed(2)}x`}
-      </span>
+      {renderRatio(samePeriodRatio)}
       <span className="text-slate-400">/</span>
-      <span className={endOfYearIsDown ? "inline-flex items-center gap-0.5 text-rose-700" : "text-slate-600"}>
-        {endOfYearIsDown ? <ArrowDown className="h-3 w-3" aria-hidden /> : null}
-        {endOfYearRatio === null ? "-" : `${endOfYearRatio.toFixed(2)}x`}
-      </span>
+      {renderRatio(endOfYearRatio)}
     </span>
   );
 }
@@ -72,8 +82,8 @@ function SchoolHistoryTooltip({
   return (
     <div
       data-school-partner-tooltip
-      className="pointer-events-auto fixed z-[100] w-[620px] max-w-[calc(100vw-1rem)] overflow-hidden rounded-md border border-slate-200 bg-white shadow-xl"
-      style={{ top: position.top, left: position.left }}
+      className="pointer-events-auto fixed z-[100] max-h-[calc(100vh-1rem)] w-[620px] max-w-[calc(100vw-1rem)] overflow-auto rounded-md border border-slate-200 bg-white shadow-xl"
+      style={{ top: position.top, left: position.left, transform: "translateY(-50%)", maxHeight: "calc(100vh - 16px)" }}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -132,19 +142,15 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
   const updateTooltipPosition = useCallback((element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
     const width = 620;
-    const height = Math.min(420, 120 + (hoveredSchool?.history.length ?? 1) * 34);
     const gap = 8;
-    const top =
-      rect.bottom + height + gap <= window.innerHeight
-        ? rect.bottom + gap
-        : Math.max(gap, rect.top - height - gap);
+    const top = Math.max(gap, Math.round(window.innerHeight / 2));
     const left = Math.min(
       Math.max(gap, rect.right + gap),
       Math.max(gap, window.innerWidth - width - gap),
     );
 
     setTooltipPosition({ top, left });
-  }, [hoveredSchool]);
+  }, []);
 
   useEffect(() => {
     if (!hoveredSchool) return;

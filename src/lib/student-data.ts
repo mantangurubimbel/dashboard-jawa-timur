@@ -245,6 +245,19 @@ function addDays(date: string, days: number) {
   return value.toISOString().slice(0, 10);
 }
 
+function todayInJakarta() {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value ?? "";
+  const month = parts.find((part) => part.type === "month")?.value ?? "";
+  const day = parts.find((part) => part.type === "day")?.value ?? "";
+  return `${year}-${month}-${day}`;
+}
+
 function weekLabel(fromDate: string, toDate: string) {
   const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   const format = (date: string) => {
@@ -388,19 +401,31 @@ export async function getStudentOverviewData(filters: {
   const lyAcademicYear = previousAcademicYear(currentAcademicYear, 1);
   const l2yAcademicYear = previousAcademicYear(currentAcademicYear, 2);
   const currentRows = filtered;
+  const comparisonFilter = (row: StudentRow) => (
+    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+    (!scopedFilters.status || row.status === scopedFilters.status) &&
+    (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
+  );
+  const currentAcademicYearRows = students.filter((row) => (
+    row.academic_year === currentAcademicYear && comparisonFilter(row)
+  ));
   const currentEndDate = scopedFilters.toDate ||
     currentRows.map((row) => row.payment_date).sort().at(-1) ||
+    currentAcademicYearRows.map((row) => row.payment_date).sort().at(-1) ||
     "";
-  const currentStartDate = scopedFilters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
+  const currentStartDate = scopedFilters.fromDate ||
+    currentAcademicYearRows
+      .filter((row) => row.payment_date.slice(5, 7) === "07")
+      .map((row) => row.payment_date)
+      .sort()
+      .at(0) ||
+    currentAcademicYearRows.map((row) => row.payment_date).sort().at(0) ||
+    `20${currentAcademicYear.slice(0, 2)}-07-01`;
   const lySamePeriodStart = shiftYear(currentStartDate, 1);
   const lySamePeriodEnd = shiftYear(currentEndDate, 1);
   const l2ySamePeriodStart = shiftYear(currentStartDate, 2);
   const l2ySamePeriodEnd = shiftYear(currentEndDate, 2);
-  const comparisonRows = students.filter((row) => (
-    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
-    (!scopedFilters.status || row.status === scopedFilters.status) &&
-    (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
-  ));
+  const comparisonRows = students.filter(comparisonFilter);
   const groupByNpsn = (rows: StudentRow[]) => {
     const grouped = new Map<string, StudentRow[]>();
     for (const row of rows) {
@@ -413,7 +438,12 @@ export async function getStudentOverviewData(filters: {
   };
   const studentsByNpsn = groupByNpsn(students);
   const currentRowsByNpsn = groupByNpsn(currentRows);
-  const comparisonRowsByNpsn = groupByNpsn(comparisonRows);
+  const lyRowsByNpsn = groupByNpsn(
+    comparisonRows.filter((row) => row.academic_year === lyAcademicYear),
+  );
+  const l2yRowsByNpsn = groupByNpsn(
+    comparisonRows.filter((row) => row.academic_year === l2yAcademicYear),
+  );
   const countByNpsn = (
     source: Map<string, StudentRow[]>,
     npsn: string,
@@ -468,10 +498,10 @@ export async function getStudentOverviewData(filters: {
         school: schoolByNpsn.get(npsn) ?? "School not found",
         level,
         students: countByNpsn(currentRowsByNpsn, npsn),
-        lySamePeriod: countByNpsn(comparisonRowsByNpsn, npsn, lySamePeriodStart, lySamePeriodEnd),
-        lyEndOfYear: countByNpsn(comparisonRowsByNpsn, npsn),
-        l2ySamePeriod: countByNpsn(comparisonRowsByNpsn, npsn, l2ySamePeriodStart, l2ySamePeriodEnd),
-        l2yEndOfYear: countByNpsn(comparisonRowsByNpsn, npsn, l2ySamePeriodStart, l2ySamePeriodEnd),
+        lySamePeriod: countByNpsn(lyRowsByNpsn, npsn, lySamePeriodStart, lySamePeriodEnd),
+        lyEndOfYear: countByNpsn(lyRowsByNpsn, npsn),
+        l2ySamePeriod: countByNpsn(l2yRowsByNpsn, npsn, l2ySamePeriodStart, l2ySamePeriodEnd),
+        l2yEndOfYear: countByNpsn(l2yRowsByNpsn, npsn),
         history,
       };
     })
@@ -567,10 +597,16 @@ export async function getStudentOverviewData(filters: {
       const bTotal = b.years[0]?.total ?? 0;
       return bTotal - aTotal || a.school.localeCompare(b.school);
     });
-  const periodStart = scopedFilters.fromDate || `20${currentAcademicYear.slice(0, 2)}-07-01`;
-  const periodEnd = scopedFilters.toDate ||
-    currentRows.map((row) => row.payment_date).sort().at(-1) ||
-    periodStart;
+  const periodStart = scopedFilters.fromDate ||
+    currentAcademicYearRows
+      .filter((row) => row.payment_date.slice(5, 7) === "07")
+      .map((row) => row.payment_date)
+      .sort()
+      .at(0) ||
+    currentAcademicYearRows.map((row) => row.payment_date).sort().at(0) ||
+    `20${currentAcademicYear.slice(0, 2)}-07-01`;
+  const today = todayInJakarta();
+  const periodEnd = today;
   const firstWeekStart = startOfWeek(periodStart);
   const lastWeekStart = startOfWeek(periodEnd);
   const weeklyWeeks: { label: string; fromDate: string; toDate: string }[] = [];
@@ -582,8 +618,13 @@ export async function getStudentOverviewData(filters: {
       toDate,
     });
   }
-  const weeklyBranchMap = new Map<number, number[]>();
+  const weeklyBranchMap = new Map<number, number[]>(
+    branches
+      .filter((branch) => scopedFilters.branchId === undefined || branch.branch_id === scopedFilters.branchId)
+      .map((branch) => [branch.branch_id, Array(weeklyWeeks.length).fill(0)]),
+  );
   for (const row of currentRows) {
+    if (row.payment_date > periodEnd) continue;
     const weekIndex = Math.floor(
       (Date.parse(`${row.payment_date}T00:00:00Z`) -
         Date.parse(`${firstWeekStart}T00:00:00Z`)) /
