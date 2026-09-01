@@ -131,6 +131,8 @@ export type StudentOverviewData = {
 export type StudentMonthlyPoint = {
   period: string;
   students: number;
+  lyStudents?: number;
+  l2yStudents?: number;
 };
 
 export type StudentKpis = {
@@ -666,6 +668,26 @@ export async function getStudentOverviewData(filters: {
   const l2ySamePeriodRows = comparisonBase.filter((row) =>
     row.academic_year === l2yAcademicYear && row.payment_date <= l2ySamePeriodEnd,
   );
+  const lyMonthlyMap = new Map<string, number>();
+  for (const row of comparisonBase) {
+    if (
+      row.academic_year !== lyAcademicYear ||
+      row.payment_date < lySamePeriodStart ||
+      row.payment_date > lySamePeriodEnd
+    ) continue;
+    const period = monthLabel(row.payment_date).split(" ")[0];
+    lyMonthlyMap.set(period, (lyMonthlyMap.get(period) ?? 0) + 1);
+  }
+  const l2yMonthlyMap = new Map<string, number>();
+  for (const row of comparisonBase) {
+    if (
+      row.academic_year !== l2yAcademicYear ||
+      row.payment_date < l2ySamePeriodStart ||
+      row.payment_date > l2ySamePeriodEnd
+    ) continue;
+    const period = monthLabel(row.payment_date).split(" ")[0];
+    l2yMonthlyMap.set(period, (l2yMonthlyMap.get(period) ?? 0) + 1);
+  }
   const levelOrder = ["SMA", "SMP", "SD", "Unmapped"];
   const levelCounts = new Map(group(levelCategory).map((row) => [row.name, row.students]));
   const levelStudents = levelOrder
@@ -721,7 +743,15 @@ export async function getStudentOverviewData(filters: {
       renewalRate: totalStudents ? repeatStudents / totalStudents : 0,
     },
     monthlyStudents: Array.from(monthlyMap.entries())
-      .map(([period, studentCount]) => ({ period, students: studentCount }))
+      .map(([period, studentCount]) => {
+        const month = period.split(" ")[0];
+        return {
+          period,
+          students: studentCount,
+          lyStudents: lyMonthlyMap.get(month) ?? 0,
+          l2yStudents: l2yMonthlyMap.get(month) ?? 0,
+        };
+      })
       .sort((a, b) => sortMonth(a.period, b.period)),
     branchStudents: group((row) => branchById.get(row.branch_id)?.branch_name ?? "Branch not found").slice(0, 12),
     gradeStudents: gradeOrder

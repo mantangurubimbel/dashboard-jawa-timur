@@ -18,6 +18,7 @@ import { formatCurrency, formatNumber } from "@/lib/format";
 import {
   getBranchRevenuePerformance,
   getDashboardData,
+  getRevenueTarget,
   getRevenueGrowthSameDate,
 } from "@/lib/local-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
@@ -60,24 +61,40 @@ export async function RevenuePageContent({
     branchId: numericValue("branchId"),
     month: selectedMonth || undefined,
   };
-  const [data, sameDateGrowth] = await Promise.all([
+  const [data, sameDateGrowth, selectedTarget] = await Promise.all([
     getDashboardData(dashboardFilters, branchScope),
     getRevenueGrowthSameDate(dashboardFilters, branchScope),
+    selectedMonth
+      ? getRevenueTarget(
+          periodContext.academicYear ?? "",
+          numericValue("regionId"),
+          numericValue("branchId"),
+          selectedMonth,
+          branchScope,
+        )
+      : Promise.resolve<number | null>(null),
   ]);
-  const branchPerformance = await getBranchRevenuePerformance(
+  const branchPerformance = (await getBranchRevenuePerformance(
     data.monthlyRevenueComparison.currentAcademicYear ?? "",
     numericValue("regionId"),
     numericValue("branchId"),
     selectedMonth || undefined,
     branchScope,
-  );
+  )).sort((left, right) => {
+    const leftAchievement = left.target > 0 ? left.revenue / left.target : -Infinity;
+    const rightAchievement = right.target > 0 ? right.revenue / right.target : -Infinity;
+    return rightAchievement - leftAchievement || right.revenue - left.revenue || left.name.localeCompare(right.name);
+  });
   const { kpis } = data;
-  const selectedMonthTarget = showDataActions && selectedMonth
-    ? data.monthlyRevenueComparison.rows.find((row) => row.month === selectedMonth)?.targetRevenue ?? 0
+  // Use the annual target only when the month filter is set to "All months".
+  // When a specific month is selected, the dashboard target (and achievement)
+  // must use that month's branch target instead.
+  const selectedMonthTarget = selectedMonth
+    ? selectedTarget ?? data.monthlyRevenueComparison.rows.find((row) => row.month === selectedMonth)?.targetRevenue ?? 0
     : kpis.targetAnnualRevenue;
-  const targetLabel = showDataActions && selectedMonth ? "Target" : "Annual Target";
+  const targetLabel = selectedMonth ? "Monthly Target" : "Annual Target";
   const achievementValue =
-    showDataActions && selectedMonth
+    selectedMonth
       ? selectedMonthTarget > 0
         ? kpis.totalRevenue / selectedMonthTarget
         : null
@@ -160,7 +177,13 @@ export async function RevenuePageContent({
           />
         </>
       )}
-      <MonthlyRevenueTable rows={data.monthlyRevenueComparison.rows} currentAcademicYear={data.monthlyRevenueComparison.currentAcademicYear} previousAcademicYear={data.monthlyRevenueComparison.previousAcademicYear} targetAnnualRevenue={kpis.targetAnnualRevenue} />
+      <MonthlyRevenueTable
+        rows={data.monthlyRevenueComparison.rows}
+        currentAcademicYear={data.monthlyRevenueComparison.currentAcademicYear}
+        previousAcademicYear={data.monthlyRevenueComparison.previousAcademicYear}
+        targetAnnualRevenue={kpis.targetAnnualRevenue}
+        targetRevenueOverride={selectedMonth ? selectedMonthTarget : undefined}
+      />
     </div>
   );
 }

@@ -130,14 +130,14 @@ function SchoolHistoryTooltip({
 
 export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }) {
   const [page, setPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(rows.length / 20));
-  const pageRows = rows.slice((page - 1) * 20, page * 20);
   const [hoveredSchool, setHoveredSchool] = useState<SchoolPartnerRow | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
   const [selectedLevel, setSelectedLevel] = useState("");
   const filteredRows = selectedLevel
     ? rows.filter((row) => row.level === selectedLevel)
     : rows;
+  const pageCount = Math.max(1, Math.ceil(filteredRows.length / 20));
+  const pageRows = filteredRows.slice((page - 1) * 20, page * 20);
 
   const updateTooltipPosition = useCallback((element: HTMLElement) => {
     const rect = element.getBoundingClientRect();
@@ -184,6 +184,7 @@ export function StudentSchoolPartnerTable({ rows }: { rows: SchoolPartnerRow[] }
               value={selectedLevel}
               onChange={(event) => {
                 setSelectedLevel(event.target.value);
+                setPage(1);
                 setHoveredSchool(null);
               }}
               className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm outline-none transition focus:border-teal-600 focus:ring-2 focus:ring-teal-100"

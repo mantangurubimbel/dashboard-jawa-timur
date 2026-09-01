@@ -1,7 +1,9 @@
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, HeartHandshake, SquarePercent, UsersRound } from "lucide-react";
+import { MetricCard } from "@/components/metric-card";
 import { StudentFilters } from "@/components/student-filters";
 import { StudentLoyalTable } from "@/components/student-loyal-table";
 import { getStudentOverviewData } from "@/lib/student-data";
+import { formatNumber } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +38,26 @@ export default async function StudentsPage({
         </p>
       </header>
       <StudentFilters options={data.filters} showDateFilters={false} values={{ branchId: value("branchId"), fromDate: "", toDate: "" }} />
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <MetricCard
+          label="Total Students"
+          value={formatNumber(data.kpis.totalStudents)}
+          detail="Unique student IDs"
+          icon={UsersRound}
+        />
+        <MetricCard
+          label="Loyal Students"
+          value={formatNumber(data.loyalStudents.length)}
+          detail="Registered across multiple academic years"
+          icon={HeartHandshake}
+        />
+        <MetricCard
+          label="Renewal Rate"
+          value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`}
+          detail="Loyal students / total students"
+          icon={SquarePercent}
+        />
+      </section>
       <StudentLoyalTable rows={data.loyalStudents} />
     </div>
   );

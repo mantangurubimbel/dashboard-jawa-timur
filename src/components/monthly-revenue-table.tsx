@@ -25,6 +25,8 @@ type MonthlyRevenueChartProps = {
   currentAcademicYear: string | null;
   previousAcademicYear: string | null;
   targetAnnualRevenue?: number;
+  /** Optional target used in the tooltip when a specific month is filtered. */
+  targetRevenueOverride?: number;
   cumulative?: boolean;
   monthlyBars?: boolean;
   showLastTwoYears?: boolean;
@@ -37,6 +39,7 @@ function ComparisonTooltip({
   payload,
   currentAcademicYear,
   targetAnnualRevenue,
+  targetRevenueOverride,
   cumulative,
   showLastTwoYears,
 }: {
@@ -44,6 +47,7 @@ function ComparisonTooltip({
   payload?: { value?: number; payload?: MonthlyComparisonPoint }[];
   currentAcademicYear: string | null;
   targetAnnualRevenue?: number;
+  targetRevenueOverride?: number;
   cumulative: boolean;
   showLastTwoYears: boolean;
 }) {
@@ -62,8 +66,8 @@ function ComparisonTooltip({
     ? row.lastTwoYearsCumulativeRevenue
     : row.lastTwoYearsRevenue;
   const targetRevenue = cumulative
-    ? targetAnnualRevenue ?? row.targetCumulativeRevenue
-    : row.targetRevenue;
+    ? targetRevenueOverride ?? targetAnnualRevenue ?? row.targetCumulativeRevenue
+    : targetRevenueOverride ?? row.targetRevenue;
   const growthVsLy =
     previousRevenue !== null && previousRevenue > 0
       ? currentRevenue / previousRevenue
@@ -134,6 +138,7 @@ export function MonthlyRevenueTable({
   currentAcademicYear,
   previousAcademicYear,
   targetAnnualRevenue,
+  targetRevenueOverride,
   cumulative = true,
   monthlyBars = false,
   showLastTwoYears = true,
@@ -155,10 +160,11 @@ export function MonthlyRevenueTable({
     : "lastTwoYearsRevenue";
   const targetDataKey = cumulative ? "targetCumulativeRevenue" : "targetRevenue";
   const chartRows =
-    cumulative && targetAnnualRevenue !== undefined
+    cumulative && (targetRevenueOverride !== undefined || targetAnnualRevenue !== undefined)
       ? rows.map((row) => ({
           ...row,
-          targetCumulativeRevenue: targetAnnualRevenue,
+          targetCumulativeRevenue:
+            targetRevenueOverride ?? targetAnnualRevenue ?? row.targetCumulativeRevenue,
         }))
       : rows;
 
@@ -221,6 +227,7 @@ export function MonthlyRevenueTable({
                 <ComparisonTooltip
                   currentAcademicYear={currentAcademicYear}
                   targetAnnualRevenue={targetAnnualRevenue}
+                  targetRevenueOverride={targetRevenueOverride}
                   cumulative={cumulative}
                   showLastTwoYears={showLastTwoYears}
                 />

@@ -12,6 +12,16 @@ const colors = [
   "var(--chart-fifth)",
 ];
 
+type StudentTrendPoint = {
+  period: string;
+  students: number;
+  cumulativeStudents?: number;
+  lySamePeriod?: number;
+  l2ySamePeriod?: number;
+  lyStudents?: number;
+  l2yStudents?: number;
+};
+
 function TooltipBox({
   active,
   payload,
@@ -25,14 +35,22 @@ function TooltipBox({
       cumulativeStudents?: number;
       lySamePeriod?: number;
       l2ySamePeriod?: number;
+      lyStudents?: number;
+      l2yStudents?: number;
     };
   }[];
 }) {
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
-  const isComparisonPoint = point.lySamePeriod !== undefined && point.l2ySamePeriod !== undefined;
-  const lySamePeriod = point.lySamePeriod ?? 0;
-  const l2ySamePeriod = point.l2ySamePeriod ?? 0;
+  const isMonthlyComparisonPoint = point.lyStudents !== undefined || point.l2yStudents !== undefined;
+  const isComparisonPoint = isMonthlyComparisonPoint ||
+    (point.lySamePeriod !== undefined && point.l2ySamePeriod !== undefined);
+  const lySamePeriod = isMonthlyComparisonPoint
+    ? point.lyStudents ?? 0
+    : point.lySamePeriod ?? 0;
+  const l2ySamePeriod = isMonthlyComparisonPoint
+    ? point.l2yStudents ?? 0
+    : point.l2ySamePeriod ?? 0;
   const lyGrowth = lySamePeriod > 0 ? point.students / lySamePeriod : null;
   const l2yGrowth = l2ySamePeriod > 0 ? point.students / l2ySamePeriod : null;
 
@@ -44,6 +62,18 @@ function TooltipBox({
           <span>{isComparisonPoint ? "Student Count" : "Student"}</span>
           <span className="text-right">{formatNumber(point.students)}</span>
         </div>
+        {isMonthlyComparisonPoint ? (
+          <>
+            <div className="flex items-center justify-between gap-4 text-xs text-blue-700">
+              <span>Students LY</span>
+              <span className="text-right">{formatNumber(lySamePeriod)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4 text-xs text-slate-600">
+              <span>Students L2Y</span>
+              <span className="text-right">{formatNumber(l2ySamePeriod)}</span>
+            </div>
+          </>
+        ) : null}
         {point.cumulativeStudents !== undefined ? (
           <div className="flex items-center justify-between gap-4 text-xs text-blue-700">
             <span>Cumulative</span>
@@ -75,13 +105,15 @@ export function StudentTrendChart({
   data,
   subtitle = "Student count by payment date.",
   showCumulative = false,
+  showComparisons = false,
 }: {
-  data: { period: string; students: number }[];
+  data: StudentTrendPoint[];
   subtitle?: string;
   showCumulative?: boolean;
+  showComparisons?: boolean;
 }) {
   const chartData = showCumulative
-    ? data.reduce<{ period: string; students: number; cumulativeStudents: number }[]>(
+    ? data.reduce<StudentTrendPoint[]>(
         (rows, row) => [
           ...rows,
           {
@@ -93,6 +125,9 @@ export function StudentTrendChart({
         [],
       )
     : data;
+  const hasComparisons = showComparisons && chartData.some(
+    (point) => point.lyStudents !== undefined || point.l2yStudents !== undefined,
+  );
 
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
@@ -115,7 +150,7 @@ export function StudentTrendChart({
             <XAxis dataKey="period" tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
             <YAxis tick={{ fill: "var(--chart-axis-muted)", fontSize: 11 }} />
             <Tooltip content={<TooltipBox />} />
-            {showCumulative ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
+            {showCumulative || hasComparisons ? <Legend wrapperStyle={{ fontSize: 12 }} /> : null}
             <Area
               type="monotone"
               dataKey="students"
@@ -126,6 +161,31 @@ export function StudentTrendChart({
               dot={{ r: 3, fill: "var(--chart-primary)" }}
               activeDot={{ r: 5, fill: "var(--chart-primary)" }}
             />
+            {hasComparisons ? (
+              <>
+                <Area
+                  type="monotone"
+                  dataKey="lyStudents"
+                  name="LY"
+                  stroke="var(--chart-secondary)"
+                  strokeWidth={2.5}
+                  fill="none"
+                  dot={{ r: 3, fill: "var(--chart-secondary)" }}
+                  activeDot={{ r: 5, fill: "var(--chart-secondary)" }}
+                />
+                <Area
+                  type="monotone"
+                  dataKey="l2yStudents"
+                  name="L2Y"
+                  stroke="var(--chart-tertiary)"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                  fill="none"
+                  dot={{ r: 3, fill: "var(--chart-tertiary)" }}
+                  activeDot={{ r: 5, fill: "var(--chart-tertiary)" }}
+                />
+              </>
+            ) : null}
             {showCumulative ? (
               <Area
                 type="monotone"

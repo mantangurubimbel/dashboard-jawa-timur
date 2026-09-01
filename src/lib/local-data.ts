@@ -762,6 +762,71 @@ export async function getBranchRevenuePerformance(
   return (await response.json()) as DashboardData["branchRevenuePerformance"];
 }
 
+/**
+ * Read the target for the active filter directly from the target table. This
+ * keeps the KPI and chart tooltip correct when a regional scope is combined
+ * with a specific month, regardless of which dashboard aggregation path is
+ * serving the request.
+ */
+export async function getRevenueTarget(
+  academicYear: string,
+  regionId?: number,
+  branchId?: number,
+  month?: string,
+  branchScope?: DashboardBranchScope,
+) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const selectedBranchId = resolveScopedBranchId(scope, branchId);
+  if (scope !== null && !scope.length) return 0;
+
+  const branchQuery: Record<string, string> = scope === null
+    ? {}
+    : { branch_id: `in.(${scope.join(",")})` };
+  const targetQuery: Record<string, string> = {
+    academic_year: `eq.${academicYear}`,
+  };
+  if (month) {
+    const monthNumber = academicMonthNumber(month);
+    if (monthNumber === null) return 0;
+    targetQuery.month_number = `eq.${monthNumber}`;
+  }
+
+  const [branches, targets] = await Promise.all([
+    fetchAll<BranchLookup>(
+      "t_branch",
+      "branch_id,branch_name,region_id",
+      1000,
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+      branchQuery,
+    ),
+    fetchAll<RevenueAnnualTargetLookup | RevenueMonthlyTargetLookup>(
+      month ? "t_revenue_monthly_target" : "t_revenue_annual_target",
+      month
+        ? "academic_year,branch_id,month_number,target_revenue"
+        : "academic_year,branch_id,target_revenue",
+      1000,
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+      { ...targetQuery, ...branchQuery },
+    ),
+  ]);
+  const allowedBranchIds = new Set(
+    branches
+      .filter((branch) =>
+        (regionId === undefined || branch.region_id === regionId) &&
+        (selectedBranchId === undefined || branch.branch_id === selectedBranchId),
+      )
+      .map((branch) => branch.branch_id),
+  );
+
+  return targets
+    .filter((target) =>
+      target.academic_year === academicYear &&
+      allowedBranchIds.has(target.branch_id) &&
+      (!month || ("month_number" in target && target.month_number === academicMonthNumber(month))),
+    )
+    .reduce((sum, target) => sum + parseRevenue(target.target_revenue), 0);
+}
+
 export async function getBranchRevenueSummary(
   academicYear: string,
   branchScope?: DashboardBranchScope,
@@ -1180,6 +1245,10 @@ async function getDashboardDataLegacy(
   }
 
   const monthKeys = new Set([...currentByMonth.keys(), ...previousByMonth.keys(), ...lastTwoByMonth.keys()]);
+  // Keep the selected month in the comparison rows even when the active
+  // branch scope has no transactions for it, so its monthly target remains
+  // available to the target card and chart tooltip.
+  if (filters.month) monthKeys.add(filters.month);
   const monthlyRevenueComparison: MonthlyComparisonPoint[] = Array.from(monthKeys)
     .sort(
       (a, b) =>

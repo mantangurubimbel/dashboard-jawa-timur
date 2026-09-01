@@ -56,7 +56,7 @@ export default async function StudentsPage({
         <MetricCard label="Renewal Rate" value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat students / total students" icon={UserCheck} />
       </section>
       <section className="grid gap-6">
-        <StudentTrendChart data={data.monthlyStudents} />
+        <StudentTrendChart data={data.monthlyStudents} showComparisons />
       </section>
       <section className="grid gap-6 xl:grid-cols-[2fr_1fr]">
         <StudentRankingChart title="Students by Grade" data={data.gradeStudents} orientation="vertical" />
