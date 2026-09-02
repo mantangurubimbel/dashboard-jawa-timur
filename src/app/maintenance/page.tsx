@@ -1,6 +1,6 @@
-import Link from "next/link";
 import { Wrench } from "lucide-react";
 import { supabaseRestFetch } from "@/lib/supabase-server";
+import { signOut } from "@/app/auth/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -37,12 +37,14 @@ export default async function MaintenancePage() {
         <p className="mt-3 text-sm leading-6 text-slate-300">
           {message || "This website is currently under maintenance. Please check back later."}
         </p>
-        <Link
-          href="/login"
-          className="mt-6 inline-flex rounded-md border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-teal-500 hover:text-white"
-        >
-          Admin sign in
-        </Link>
+        <form action={signOut} className="mt-6">
+          <button
+            type="submit"
+            className="inline-flex rounded-md border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-teal-500 hover:text-white"
+          >
+            Admin sign in
+          </button>
+        </form>
       </section>
     </main>
   );

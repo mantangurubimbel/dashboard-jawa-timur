@@ -11,6 +11,27 @@ function isAdminEmail(email?: string | null) {
   ).has(email.toLowerCase());
 }
 
+async function readMaintenanceActive() {
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!supabaseUrl || !supabaseAnonKey) return false;
+
+  try {
+    const response = await fetch(
+      `${supabaseUrl}/rest/v1/t_dashboard_maintenance?select=is_active&id=eq.1&limit=1`,
+      {
+        cache: "no-store",
+        headers: { apikey: supabaseAnonKey },
+      },
+    );
+    if (!response.ok) return false;
+    const rows = (await response.json()) as { is_active?: boolean }[];
+    return Boolean(rows[0]?.is_active);
+  } catch {
+    return false;
+  }
+}
+
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
 
@@ -45,12 +66,7 @@ export async function proxy(request: NextRequest) {
 
   let maintenanceActive = false;
   if (!isFrameworkPath) {
-    const { data } = await supabase
-      .from("t_dashboard_maintenance")
-      .select("is_active")
-      .eq("id", 1)
-      .maybeSingle();
-    maintenanceActive = Boolean(data?.is_active);
+    maintenanceActive = await readMaintenanceActive();
   }
 
   if (!user && !isLoginPath && !isMaintenancePath && !isFrameworkPath) {
