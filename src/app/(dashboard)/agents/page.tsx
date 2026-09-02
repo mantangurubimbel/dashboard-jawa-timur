@@ -1,7 +1,7 @@
 import { UsersRound } from "lucide-react";
 import { AgentFilters } from "@/components/agent-filters";
 import { AgentPerformanceTable } from "@/components/agent-performance-table";
-import { getAgentAnalytics } from "@/lib/analytics-data";
+import { getAgentAnalytics, getAgentProductRevenue } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
 import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
@@ -62,13 +62,17 @@ export default async function AgentsPage({
   const productivityFromDate = selectedFromDate || periodContext.startDate || "";
   const productivityToDate = selectedToDate || periodContext.latestPaymentDate || "";
   const productivityWeekdays = countWeekdays(productivityFromDate, productivityToDate);
-  const rows = await getAgentAnalytics({
+  const analyticsFilters = {
     academicYear,
     branchId: value("branchId") ? Number(value("branchId")) : undefined,
     month: month || undefined,
     fromDate: selectedFromDate || undefined,
     toDate: selectedToDate || undefined,
-  }, branchScope);
+  };
+  const [rows, productRevenue] = await Promise.all([
+    getAgentAnalytics(analyticsFilters, branchScope),
+    getAgentProductRevenue(analyticsFilters, branchScope),
+  ]);
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
       <header className="border-b border-slate-200 pb-5">
@@ -95,6 +99,7 @@ export default async function AgentsPage({
       />
       <AgentPerformanceTable
         data={rows}
+        productRevenue={productRevenue}
         productivityWeekdays={productivityWeekdays}
         showRevenuePerNewTxn
       />

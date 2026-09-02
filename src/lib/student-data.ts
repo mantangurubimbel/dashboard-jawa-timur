@@ -87,6 +87,7 @@ export type StudentOverviewData = {
   loyalStudents: {
     nis: string;
     name: string;
+    grade: string;
     branch: string;
     purchases: number;
     academicYears: string;
@@ -530,6 +531,7 @@ export async function getStudentOverviewData(filters: {
       return {
         nis: current.nis,
         name: current.user_name,
+        grade: current.grade_id === null ? "-" : gradeById.get(current.grade_id)?.grade ?? "-",
         branch: branchById.get(current.branch_id)?.branch_name ?? "Branch not found",
         purchases: history.length,
         academicYears: academicYears.join(", "),
@@ -903,13 +905,55 @@ export async function getStudentRevenueSummary(
   const branchStudents = new Map<number, Set<string>>();
   const branchSerials = new Map<number, Set<string>>();
   const serialCounts = new Map<string, number>();
+  const currentRows = rows.filter((row) => row.academic_year === academicYear);
+  const currentEndDate = currentRows
+    .map((row) => row.payment_date)
+    .sort()
+    .at(-1);
+  const lyAcademicYear = previousAcademicYear(academicYear, 1);
+  const l2yAcademicYear = previousAcademicYear(academicYear, 2);
+  const lyEndDate = currentEndDate ? shiftYear(currentEndDate, 1) : undefined;
+  const l2yEndDate = currentEndDate ? shiftYear(currentEndDate, 2) : undefined;
+  const gradeOrder = [
+    "12 SMA + Gapyear",
+    "11 SMA",
+    "10 SMA",
+    "9 SMP",
+    "8 SMP",
+    "7 SMP",
+    "6 SD",
+    "5 SD",
+    "4 SD",
+    "3 SD",
+  ];
+  const gradeCategory = (grade: string) =>
+    grade === "12 SMA" || grade === "Gapyear" ? "12 SMA + Gapyear" : grade;
+  const lyGradeCounts = new Map<string, Set<string>>();
+  const l2yGradeCounts = new Map<string, Set<string>>();
   for (const row of rows) {
     serialCounts.set(row.user_serial, (serialCounts.get(row.user_serial) ?? 0) + 1);
+    const grade = gradeCategory(gradeById.get(row.grade_id ?? -1)?.grade ?? "Unmapped");
+    if (
+      row.academic_year === lyAcademicYear &&
+      (!lyEndDate || row.payment_date <= lyEndDate)
+    ) {
+      const nises = lyGradeCounts.get(grade) ?? new Set<string>();
+      nises.add(row.nis);
+      lyGradeCounts.set(grade, nises);
+    }
+    if (
+      row.academic_year === l2yAcademicYear &&
+      (!l2yEndDate || row.payment_date <= l2yEndDate)
+    ) {
+      const nises = l2yGradeCounts.get(grade) ?? new Set<string>();
+      nises.add(row.nis);
+      l2yGradeCounts.set(grade, nises);
+    }
   }
   for (const row of rows) {
     if (row.academic_year !== academicYear) continue;
     const level = gradeById.get(row.grade_id ?? -1)?.level ?? "Unmapped";
-    const grade = gradeById.get(row.grade_id ?? -1)?.grade ?? "Unmapped";
+    const grade = gradeCategory(gradeById.get(row.grade_id ?? -1)?.grade ?? "Unmapped");
     const gradeNises = gradeCounts.get(grade) ?? new Set<string>();
     gradeNises.add(row.nis);
     gradeCounts.set(grade, gradeNises);
@@ -935,9 +979,14 @@ export async function getStudentRevenueSummary(
         name,
         students: levelCounts.get(name)?.size ?? 0,
       })),
-    gradeStudents: Array.from(gradeCounts.entries())
-      .map(([name, nises]) => ({ name, students: nises.size, lySamePeriod: 0, l2ySamePeriod: 0 }))
-      .sort((a, b) => b.students - a.students || a.name.localeCompare(b.name)),
+    gradeStudents: gradeOrder
+      .filter((name) => gradeCounts.has(name))
+      .map((name) => ({
+        name,
+        students: gradeCounts.get(name)?.size ?? 0,
+        lySamePeriod: lyGradeCounts.get(name)?.size ?? 0,
+        l2ySamePeriod: l2yGradeCounts.get(name)?.size ?? 0,
+      })),
     branchStudents: Array.from(branchStudents.entries())
       .map(([branchId, nises]) => ({
         name: branchById.get(branchId) ?? "Branch not found",

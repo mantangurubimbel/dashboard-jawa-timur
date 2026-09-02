@@ -42,7 +42,7 @@ export default async function StudentsPage({
         <MetricCard
           label="Total Students"
           value={formatNumber(data.kpis.totalStudents)}
-          detail="Unique student IDs"
+          detail="Unique NIS"
           icon={UsersRound}
         />
         <MetricCard

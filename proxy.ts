@@ -1,6 +1,16 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 
+function isAdminEmail(email?: string | null) {
+  if (!email) return false;
+  return new Set(
+    (process.env.ADMIN_EMAILS ?? "")
+      .split(",")
+      .map((value) => value.trim().toLowerCase())
+      .filter(Boolean),
+  ).has(email.toLowerCase());
+}
+
 export async function proxy(request: NextRequest) {
   const response = NextResponse.next({ request });
 
@@ -27,14 +37,29 @@ export async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
   const pathname = request.nextUrl.pathname;
   const isLoginPath = pathname === "/login";
+  const isMaintenancePath = pathname === "/maintenance";
   const isFrameworkPath =
     pathname.startsWith("/_next") || pathname === "/favicon.ico";
+  const isServerAction =
+    request.method === "POST" && request.headers.has("next-action");
 
-  if (!user && !isLoginPath && !isFrameworkPath) {
-    return NextResponse.redirect(new URL("/login", request.url));
+  let maintenanceActive = false;
+  if (!isFrameworkPath) {
+    const { data } = await supabase
+      .from("t_dashboard_maintenance")
+      .select("is_active")
+      .eq("id", 1)
+      .maybeSingle();
+    maintenanceActive = Boolean(data?.is_active);
   }
 
-  if (!user || isFrameworkPath) {
+  if (!user && !isLoginPath && !isMaintenancePath && !isFrameworkPath) {
+    return NextResponse.redirect(
+      new URL(maintenanceActive ? "/maintenance" : "/login", request.url),
+    );
+  }
+
+  if (!user || isFrameworkPath || isMaintenancePath) {
     return response;
   }
 
@@ -44,7 +69,7 @@ export async function proxy(request: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
 
-  if (!profile?.access_revenue_dashboard) {
+  if (!profile?.access_revenue_dashboard && !isAdminEmail(user.email)) {
     await supabase.auth.signOut();
     const url = new URL("/login", request.url);
     url.searchParams.set("error", "This account does not have access to the Revenue Dashboard.");
@@ -52,7 +77,14 @@ export async function proxy(request: NextRequest) {
   }
 
   if (isLoginPath) {
+    if (maintenanceActive && !isAdminEmail(user.email)) {
+      return NextResponse.redirect(new URL("/maintenance", request.url));
+    }
     return NextResponse.redirect(new URL("/executive-summary", request.url));
+  }
+
+  if (maintenanceActive && !isAdminEmail(user.email) && !isServerAction && !isMaintenancePath) {
+    return NextResponse.redirect(new URL("/maintenance", request.url));
   }
 
   return response;

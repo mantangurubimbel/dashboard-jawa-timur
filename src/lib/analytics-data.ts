@@ -23,6 +23,12 @@ type ProductAnalyticsRow = {
   bulkBuying?: boolean;
 };
 
+export type AgentProductRevenueRow = {
+  agent: string;
+  branch: string;
+  products: { product: string; revenue: number }[];
+};
+
 export type ProductRevenueComparison = {
   ly: Map<string, number>;
   l2y: Map<string, number>;
@@ -345,6 +351,87 @@ export async function getAgentAnalytics(filters: {
     if (!isMissingRpcError(error)) throw error;
     return getAgentAnalyticsLocal(filters, scope);
   }
+}
+
+export async function getAgentProductRevenue(
+  filters: {
+    academicYear?: string;
+    branchId?: number;
+    month?: string;
+    fromDate?: string;
+    toDate?: string;
+  },
+  branchScope?: DashboardBranchScope,
+): Promise<AgentProductRevenueRow[]> {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return [];
+  const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
+  const branchFilters = branchQuery(scope, selectedBranchId);
+  const [transactions, agents, branches, products] = await Promise.all([
+    fetchAll<AnalyticsTransaction>(
+      "t_revenue_txn",
+      "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
+      branchFilters,
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+    fetchAll<AnalyticsAgent>(
+      "t_agent",
+      "agent_id,agent_name",
+      {},
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+    fetchAll<AnalyticsBranch>(
+      "t_branch",
+      "branch_id,branch_name",
+      branchFilters,
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+    fetchAll<AnalyticsProduct>(
+      "t_revenue_products",
+      "product_id,product_name,product_code",
+      {},
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    ),
+  ]);
+  const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
+  const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
+  const productById = new Map(products.map((row) => [row.product_id, row]));
+  const grouped = new Map<string, Map<string, { product: string; revenue: number }>>();
+
+  for (const row of transactions) {
+    if (
+      row.agent_id === null ||
+      row.is_bulkbuying ||
+      (filters.academicYear && academicYearFromMonth(row.month) !== filters.academicYear) ||
+      (filters.month && row.month.split(" ")[0] !== filters.month) ||
+      !dateMatches(row, filters.fromDate, filters.toDate)
+    ) continue;
+    const agentBranchKey = `${row.agent_id}:${row.branch_id ?? "null"}`;
+    const productKey = String(row.product_id ?? "null");
+    const productLookup = row.product_id === null ? undefined : productById.get(row.product_id);
+    const product = productLookup?.product_name || productLookup?.product_code ||
+      (row.product_id === null ? "(Unmapped)" : `Product #${row.product_id}`);
+    const productRows = grouped.get(agentBranchKey) ?? new Map<string, { product: string; revenue: number }>();
+    const current = productRows.get(productKey) ?? { product, revenue: 0 };
+    current.revenue += parseRevenue(row.revenue);
+    productRows.set(productKey, current);
+    grouped.set(agentBranchKey, productRows);
+  }
+
+  return Array.from(grouped.entries()).map(([key, productRows]) => {
+    const [agentId, branchId] = key.split(":");
+    const numericAgentId = Number(agentId);
+    const numericBranchId = branchId === "null" ? null : Number(branchId);
+    return {
+      agent: agentById.get(numericAgentId) ?? `Agent #${agentId}`,
+      branch: numericBranchId === null
+        ? "(empty)"
+        : branchById.get(numericBranchId) ?? `Branch #${numericBranchId}`,
+      products: Array.from(productRows.values()).sort(
+        (left, right) => right.revenue - left.revenue || left.product.localeCompare(right.product),
+      ),
+    };
+  });
 }
 
 async function getProductAnalyticsLocal(

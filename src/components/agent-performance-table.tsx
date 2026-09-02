@@ -2,14 +2,18 @@
 
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { AgentPerformance } from "@/lib/types";
-import { useState } from "react";
+import type { AgentProductRevenueRow } from "@/lib/analytics-data";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 export function AgentPerformanceTable({
   data,
+  productRevenue = [],
   productivityWeekdays,
   showRevenuePerNewTxn = false,
 }: {
   data: AgentPerformance[];
+  productRevenue?: AgentProductRevenueRow[];
   productivityWeekdays?: number;
   showRevenuePerNewTxn?: boolean;
 }) {
@@ -17,8 +21,43 @@ export function AgentPerformanceTable({
     .slice()
     .sort((a, b) => b.revenueNonBulkBuying - a.revenueNonBulkBuying || a.agent.localeCompare(b.agent));
   const [page, setPage] = useState(1);
+  const [hoveredAgent, setHoveredAgent] = useState<AgentPerformance | null>(null);
+  const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / 20));
   const rows = sortedRows.slice((page - 1) * 20, page * 20);
+
+  const updateTooltipPosition = useCallback(() => {
+    const header = document.querySelector<HTMLElement>("[data-agent-branch-header]");
+    if (!header) return;
+    const rect = header.getBoundingClientRect();
+    setTooltipPosition({ top: Math.round(rect.bottom), left: Math.round(rect.left) });
+  }, []);
+
+  useEffect(() => {
+    if (!hoveredAgent) return;
+    const handleViewportChange = () => updateTooltipPosition();
+    window.addEventListener("scroll", handleViewportChange, true);
+    window.addEventListener("resize", handleViewportChange);
+    return () => {
+      window.removeEventListener("scroll", handleViewportChange, true);
+      window.removeEventListener("resize", handleViewportChange);
+    };
+  }, [hoveredAgent, updateTooltipPosition]);
+
+  const cancelHide = () => {
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+  };
+  const scheduleHide = () => {
+    cancelHide();
+    hideTimer.current = setTimeout(() => setHoveredAgent(null), 300);
+  };
+  const productMap = new Map(
+    productRevenue.map((row) => [`${row.agent}::${row.branch}`, row.products]),
+  );
+  const hoveredProducts = hoveredAgent
+    ? productMap.get(`${hoveredAgent.agent}::${hoveredAgent.branch}`) ?? []
+    : [];
 
   return (
     <section className="flex max-h-[calc(100vh-18rem)] min-h-[360px] flex-col overflow-hidden rounded-md border border-slate-200 bg-white p-4 shadow-sm">
@@ -39,7 +78,7 @@ export function AgentPerformanceTable({
                 showRevenuePerNewTxn ? "AOV New Txn" : "Txn Non Bulk",
                 productivityWeekdays === undefined ? "Schools" : "Productivity",
               ].map((label, index) => (
-                <th key={label} className={`sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold ${index >= 3 ? "text-right" : ""}`}>{label}</th>
+                <th key={label} data-agent-branch-header={label === "Branch" ? true : undefined} className={`sticky top-0 z-10 bg-slate-100 px-3 py-2 font-semibold ${index >= 3 ? "text-right" : ""}`}>{label}</th>
               ))}
             </tr>
           </thead>
@@ -47,7 +86,19 @@ export function AgentPerformanceTable({
             {rows.map((row, index) => (
               <tr key={`${row.agent}-${row.branch}-${index}`} className="transition-colors hover:bg-slate-50">
               <td className="px-3 py-2 font-semibold text-slate-500">{(page - 1) * 20 + index + 1}</td>
-                <td className="px-3 py-2 font-medium text-slate-800">{row.agent}</td>
+                <td className="px-3 py-2 font-medium text-slate-800">
+                  <span
+                    className="cursor-default"
+                    onMouseEnter={() => {
+                      cancelHide();
+                      setHoveredAgent(row);
+                      updateTooltipPosition();
+                    }}
+                    onMouseLeave={scheduleHide}
+                  >
+                    {row.agent}
+                  </span>
+                </td>
                 <td className="px-3 py-2 text-slate-600">{row.branch}</td>
                 <td className="px-3 py-2 text-right font-semibold text-teal-700">{formatCurrency(row.revenueNonBulkBuying)}</td>
                 <td className="px-3 py-2 text-right text-slate-700">{formatNumber(row.newTxnNonBulkBuying)}</td>
@@ -74,11 +125,32 @@ export function AgentPerformanceTable({
       <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-3 text-xs text-slate-500">
         <span>{formatNumber(sortedRows.length)} agent - {page} from {pageCount} pages</span>
         {pageCount > 1 ? <div className="flex items-center gap-2">
-          <button type="button" disabled={page === 1} onClick={() => setPage((value) => value - 1)} className="rounded border border-slate-300 px-2.5 py-1 disabled:opacity-40">Prev</button>
+          <button type="button" disabled={page === 1} onClick={() => { setHoveredAgent(null); setPage((value) => value - 1); }} className="rounded border border-slate-300 px-2.5 py-1 disabled:opacity-40">Prev</button>
           <span className="whitespace-nowrap font-medium text-slate-700">{page} / {pageCount}</span>
-          <button type="button" disabled={page === pageCount} onClick={() => setPage((value) => value + 1)} className="rounded border border-slate-300 px-2.5 py-1 disabled:opacity-40">Next</button>
+          <button type="button" disabled={page === pageCount} onClick={() => { setHoveredAgent(null); setPage((value) => value + 1); }} className="rounded border border-slate-300 px-2.5 py-1 disabled:opacity-40">Next</button>
         </div> : null}
       </div>
+      {hoveredAgent ? createPortal(
+        <div
+          data-agent-product-tooltip
+          className="pointer-events-auto fixed z-[100] w-72 max-w-[calc(100vw-1rem)] overflow-auto rounded-md border border-slate-200 bg-white px-4 py-3 text-sm shadow-xl"
+          style={{ top: tooltipPosition.top, left: tooltipPosition.left, maxHeight: `calc(100vh - ${tooltipPosition.top + 8}px)` }}
+          onMouseEnter={cancelHide}
+          onMouseLeave={scheduleHide}
+        >
+          <p className="font-semibold text-slate-950">{hoveredAgent.agent}</p>
+          <p className="mt-0.5 text-xs text-slate-500">Detail revenue per product</p>
+          <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+            {hoveredProducts.length ? hoveredProducts.map((product) => (
+              <div key={product.product} className="flex items-center justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate text-slate-600">{product.product}</span>
+                <span className="shrink-0 whitespace-nowrap text-right font-semibold text-slate-800">{formatCurrency(product.revenue)}</span>
+              </div>
+            )) : <p className="text-xs text-slate-500">No non-bulk buying revenue.</p>}
+          </div>
+        </div>,
+        document.body,
+      ) : null}
     </section>
   );
 }

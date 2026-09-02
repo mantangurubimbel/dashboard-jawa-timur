@@ -77,8 +77,8 @@ export default async function ExecutiveSummaryPage() {
         <MetricCard label="Rev Bulk Buying" value={formatCurrency(bulkActualRevenue)} detail="Bulk buying txn only" icon={Banknote} />
         <MetricCard label="Growth BB vs LY" value={bulkGrowthVsLy === null ? "-" : `${bulkGrowthVsLy.toFixed(2)}x`} detail="AYtD BB comparison" icon={TrendingUp} />
         <MetricCard label="Total Students" value={formatNumber(students.kpis.totalStudents)} detail="Active & inactive" icon={UsersRound} />
-        <MetricCard label="Active Class Groups" value={formatNumber(students.kpis.activeRombel)} detail="Unique class groups per branch" icon={Contact} />
-        <MetricCard label="Avg Students / Class Group" value={students.kpis.averageStudentsPerRombel.toFixed(1)} detail="15 as target" icon={FileUser} />
+        <MetricCard label="Active Rombel" value={formatNumber(students.kpis.activeRombel)} detail="Unique rombel per branch" icon={Contact} />
+        <MetricCard label="Avg Students/Rombel" value={students.kpis.averageStudentsPerRombel.toFixed(1)} detail="15 as target" icon={FileUser} />
         <MetricCard label="Repeat Students" value={formatNumber(students.kpis.repeatStudents)} detail="Loyal students" icon={ReplyAll} />
         <MetricCard label="Renewal Rate" value={`${(students.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat/total students" icon={SquarePercent} />
       </section>

@@ -49,11 +49,11 @@ export default async function StudentsPage({
         }}
       />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-        <MetricCard label="Total Students" value={formatNumber(data.kpis.totalStudents)} detail="Unique student IDs" icon={UsersRound} />
-        <MetricCard label="Active Class Groups" value={formatNumber(data.kpis.activeRombel)} detail="Unique class groups per branch" icon={UserCheck} />
-        <MetricCard label="Avg Students / Class Group" value={data.kpis.averageStudentsPerRombel.toFixed(1)} detail="Total students / active class groups" icon={UserPlus} />
+        <MetricCard label="Total Students" value={formatNumber(data.kpis.totalStudents)} detail="Unique NIS" icon={UsersRound} />
+        <MetricCard label="Active Rombel" value={formatNumber(data.kpis.activeRombel)} detail="Unique rombel per branch" icon={UserCheck} />
+        <MetricCard label="Avg Students/Rombel" value={data.kpis.averageStudentsPerRombel.toFixed(1)} detail="Total students/active rombel" icon={UserPlus} />
         <MetricCard label="Repeat Students" value={formatNumber(data.kpis.repeatStudents)} detail="Appears more than once" icon={UsersRound} />
-        <MetricCard label="Renewal Rate" value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat students / total students" icon={UserCheck} />
+        <MetricCard label="Renewal Rate" value={`${(data.kpis.renewalRate * 100).toFixed(1)}%`} detail="Repeat students/total students" icon={UserCheck} />
       </section>
       <section className="grid gap-6">
         <StudentTrendChart data={data.monthlyStudents} showComparisons />

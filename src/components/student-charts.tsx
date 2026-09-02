@@ -43,8 +43,9 @@ function TooltipBox({
   if (!active || !payload?.length) return null;
   const point = payload[0].payload;
   const isMonthlyComparisonPoint = point.lyStudents !== undefined || point.l2yStudents !== undefined;
-  const isComparisonPoint = isMonthlyComparisonPoint ||
-    (point.lySamePeriod !== undefined && point.l2ySamePeriod !== undefined);
+  const hasLyComparison = point.lyStudents !== undefined || point.lySamePeriod !== undefined;
+  const hasL2yComparison = point.l2yStudents !== undefined || point.l2ySamePeriod !== undefined;
+  const isComparisonPoint = hasLyComparison || hasL2yComparison;
   const lySamePeriod = isMonthlyComparisonPoint
     ? point.lyStudents ?? 0
     : point.lySamePeriod ?? 0;
@@ -62,7 +63,7 @@ function TooltipBox({
           <span>{isComparisonPoint ? "Student Count" : "Student"}</span>
           <span className="text-right">{formatNumber(point.students)}</span>
         </div>
-        {isMonthlyComparisonPoint ? (
+        {isComparisonPoint ? (
           <>
             <div className="flex items-center justify-between gap-4 text-xs text-blue-700">
               <span>Students LY</span>

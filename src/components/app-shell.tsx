@@ -13,6 +13,9 @@ import {
   UsersRound,
   School,
   HeartHandshake,
+  Wallet,
+  History,
+  GitBranch,
   ChevronDown,
   Menu,
   X,
@@ -38,7 +41,12 @@ const navigation = [
     { href: "/schools", label: "By Revenue", icon: Banknote },
     { href: "/schools/by-students", label: "By BAC Students", icon: GraduationCap },
   ] },
+  { label: "All Time Performance", icon: History, children: [
+    { href: "/all-time-performance/branch", label: "Branch", icon: GitBranch },
+    { href: "/all-time-performance/agent", label: "Agent", icon: UsersRound },
+  ] },
   { href: "/settings", label: "Settings", icon: Settings2 },
+  { href: "https://data-bayar-jatim.vercel.app", label: "Data Bayar", icon: Wallet, external: true },
 ];
 
 export function AppShell({
@@ -55,7 +63,7 @@ export function AppShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const previousPathname = useRef(pathname);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    "Revenue Overview": true, "Students Overview": true, "School Partner": true,
+    "Revenue Overview": true, "Students Overview": true, "School Partner": true, "All Time Performance": true,
   });
 
   useEffect(() => {
@@ -133,11 +141,14 @@ export function AppShell({
         );
       }
 
+      const isExternal = "external" in item && item.external === true;
       const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
       return (
         <Link
           key={item.href}
           href={item.href}
+          target={isExternal ? "_blank" : undefined}
+          rel={isExternal ? "noreferrer" : undefined}
           onClick={() => {
             if (isMobile) setMobileMenuOpen(false);
           }}

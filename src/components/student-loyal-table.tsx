@@ -7,6 +7,7 @@ import { formatNumber } from "@/lib/format";
 type LoyalStudent = {
   nis: string;
   name: string;
+  grade: string;
   branch: string;
   purchases: number;
   academicYears: string;
@@ -18,8 +19,10 @@ type LoyalStudent = {
 
 export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
   const [page, setPage] = useState(1);
-  const pageCount = Math.max(1, Math.ceil(rows.length / 20));
-  const pageRows = rows.slice((page - 1) * 20, page * 20);
+  const [possibleRenewNextAy, setPossibleRenewNextAy] = useState(false);
+  const visibleRows = possibleRenewNextAy ? rows.filter((row) => row.grade !== "12 SMA") : rows;
+  const pageCount = Math.max(1, Math.ceil(visibleRows.length / 20));
+  const pageRows = visibleRows.slice((page - 1) * 20, page * 20);
   const [hoveredStudent, setHoveredStudent] = useState<LoyalStudent | null>(null);
   const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
 
@@ -52,13 +55,28 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-base font-semibold text-slate-950">Loyal Students</h2>
-          <p className="mt-1 text-sm text-slate-500">Students registered across multiple academic years</p>
+          <div className="mt-1 flex items-center justify-between gap-4">
+            <p className="text-sm text-slate-500">Students registered across multiple academic years</p>
+            <label className="flex shrink-0 items-center gap-2 text-xs text-slate-600">
+            <input
+              type="checkbox"
+              checked={possibleRenewNextAy}
+              onChange={(event) => {
+                setPossibleRenewNextAy(event.target.checked);
+                setPage(1);
+                setHoveredStudent(null);
+              }}
+              className="h-4 w-4 rounded border-slate-300 text-teal-700 accent-teal-700"
+            />
+              <span>Possible renew for next AY</span>
+            </label>
+          </div>
         </div>
         <div className="max-h-[calc(100vh-18rem)] min-h-[360px] overflow-auto">
           <table className="w-full min-w-[760px] border-collapse text-left text-sm">
             <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500">
               <tr>
-                {["Student ID", "Name", "Branch", "BAC Purchases", "Academic Years"].map((label) => (
+                {["NIS", "Name", "Grade", "Branch", "BAC Purchases", "Academic Years"].map((label) => (
                   <th key={label} className="px-3 py-2 font-semibold">{label}</th>
                 ))}
               </tr>
@@ -85,18 +103,19 @@ export function StudentLoyalTable({ rows }: { rows: LoyalStudent[] }) {
                     </span>
                   </td>
                   <td className="px-3 py-2 font-medium text-slate-800">{row.name}</td>
+                  <td className={`px-3 py-2 ${row.grade === "12 SMA" ? "text-rose-700" : "text-emerald-700"}`}>{row.grade}</td>
                   <td className="px-3 py-2 text-slate-600">{row.branch}</td>
                   <td className="px-3 py-2 text-center font-semibold text-teal-700">{formatNumber(row.purchases)}</td>
                   <td className="px-3 py-2 text-slate-600">{row.academicYears}</td>
                 </tr>
               ))}
-              {!rows.length ? <tr><td colSpan={5} className="px-3 py-8 text-center text-slate-500">No loyal students found for this academic year.</td></tr> : null}
+              {!visibleRows.length ? <tr><td colSpan={6} className="px-3 py-8 text-center text-slate-500">No loyal students found for this academic year.</td></tr> : null}
             </tbody>
           </table>
         </div>
         <div className="border-t border-slate-200 px-4 py-2 text-xs text-slate-500">
           <div className="flex min-h-8 items-center justify-between gap-3">
-            <span>{formatNumber(rows.length)} loyal students - {page} from {pageCount} pages</span>
+            <span>{formatNumber(visibleRows.length)} loyal students - {page} from {pageCount} pages</span>
             {pageCount > 1 ? <div className="flex items-center gap-2"><button type="button" disabled={page === 1} onClick={() => setPage((p) => p - 1)} className="h-7 rounded border px-2 text-xs disabled:opacity-40">Prev</button><span className="whitespace-nowrap text-xs font-medium">{page} / {pageCount}</span><button type="button" disabled={page === pageCount} onClick={() => setPage((p) => p + 1)} className="h-7 rounded border px-2 text-xs disabled:opacity-40">Next</button></div> : null}
           </div>
         </div>

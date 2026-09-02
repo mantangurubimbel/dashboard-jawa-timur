@@ -3,10 +3,15 @@ import { isAdminEmail } from "@/lib/admin-auth";
 import { createSupabaseAuthServerClient } from "@/lib/supabase-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 
+/** Branches reserved for other operational workflows and hidden from this dashboard. */
+export const DASHBOARD_EXCLUDED_BRANCH_IDS = [100] as const;
+
 /**
- * `null` means unrestricted access (admin). An array contains the only
- * branch IDs a non-admin user may access. An empty array intentionally means
- * that the user has no dashboard data access until an admin assigns a branch.
+ * An array contains the only branch IDs a user may access. Admins receive all
+ * dashboard branches explicitly (rather than `null`) so excluded branches
+ * are consistently omitted from both RPC and local data paths. An empty array
+ * intentionally means that the user has no dashboard data access until an
+ * admin assigns a branch.
  */
 export type DashboardBranchScope = number[] | null;
 
@@ -50,12 +55,26 @@ export const getDashboardUserContext = cache(async (): Promise<DashboardUserCont
     .maybeSingle();
 
   if (isAdmin) {
+    const { data: branches, error: branchesError } = await createSupabaseServiceRoleClient()
+      .from("t_branch")
+      .select("branch_id")
+      .not("branch_id", "in", `(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})`);
+    if (branchesError) {
+      throw new Error(`Failed to read dashboard branches: ${branchesError.message}`);
+    }
+
     return {
       user: { id: user.id, email: user.email },
       profile,
       isAdmin,
       hasDashboardAccess: true,
-      branchScope: null,
+      branchScope: Array.from(
+        new Set(
+          (branches ?? [])
+            .map((row) => Number(row.branch_id))
+            .filter((branchId) => Number.isSafeInteger(branchId) && branchId > 0),
+        ),
+      ),
     };
   }
 
@@ -87,7 +106,12 @@ export const getDashboardUserContext = cache(async (): Promise<DashboardUserCont
       new Set(
         (data ?? [])
           .map((row) => Number(row.branch_id))
-          .filter((branchId) => Number.isSafeInteger(branchId) && branchId > 0),
+          .filter(
+            (branchId) =>
+              Number.isSafeInteger(branchId) &&
+              branchId > 0 &&
+              !DASHBOARD_EXCLUDED_BRANCH_IDS.includes(branchId as (typeof DASHBOARD_EXCLUDED_BRANCH_IDS)[number]),
+          ),
       ),
     ),
   };

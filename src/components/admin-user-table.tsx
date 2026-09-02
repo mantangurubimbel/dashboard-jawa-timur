@@ -10,6 +10,7 @@ import { FormPendingIndicator, PendingSubmitButton } from "@/components/form-sub
 type AdminUser = {
   id: string;
   name: string;
+  email: string;
   position: string;
   branches: { id: number; name: string }[];
   accessRevenue: boolean;
@@ -126,7 +127,10 @@ export function AdminUserTable({
               <summary className="grid cursor-pointer list-none gap-3 px-4 py-3 transition hover:bg-slate-50 sm:grid-cols-[minmax(0,1.4fr)_minmax(150px,1fr)_130px_110px_62px] sm:items-center [&::-webkit-details-marker]:hidden">
                 <div className="flex min-w-0 items-center gap-2">
                   <ChevronDown className="h-4 w-4 shrink-0 text-slate-400 transition-transform group-open:rotate-180" aria-hidden />
-                  <p className="truncate text-sm font-bold text-slate-800">{user.name || "-"}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold text-slate-800">{user.name || "-"}</p>
+                    <p className="truncate text-xs font-semibold text-slate-500">{user.email || "-"}</p>
+                  </div>
                 </div>
                 <p className="truncate text-xs font-semibold text-slate-500">{user.position || "No position assigned"}</p>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-center text-xs font-bold text-teal-700">
