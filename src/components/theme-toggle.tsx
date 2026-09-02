@@ -5,19 +5,39 @@ import { useEffect, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
-function readTheme(): Theme {
-  const savedTheme = window.localStorage.getItem("dashboard-theme");
-  if (savedTheme === "dark" || savedTheme === "light") return savedTheme;
-  return "dark";
-}
+const DEFAULT_THEME: Theme = "dark";
+let clientTheme: Theme = DEFAULT_THEME;
 
 function subscribeToTheme(callback: () => void) {
   window.addEventListener("dashboard-theme-change", callback);
   return () => window.removeEventListener("dashboard-theme-change", callback);
 }
 
+function getClientTheme() {
+  return clientTheme;
+}
+
+function getServerTheme() {
+  return DEFAULT_THEME;
+}
+
+function readSavedTheme(): Theme {
+  const savedTheme = window.localStorage.getItem("dashboard-theme");
+  return savedTheme === "dark" || savedTheme === "light" ? savedTheme : DEFAULT_THEME;
+}
+
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribeToTheme, readTheme, () => "dark");
+  // Keep the server snapshot and the first client snapshot identical. The
+  // persisted browser preference is applied in the effect after hydration.
+  const theme = useSyncExternalStore(subscribeToTheme, getClientTheme, getServerTheme);
+
+  useEffect(() => {
+    const savedTheme = readSavedTheme();
+    if (clientTheme !== savedTheme) {
+      clientTheme = savedTheme;
+      window.dispatchEvent(new Event("dashboard-theme-change"));
+    }
+  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -26,6 +46,7 @@ export function ThemeToggle() {
 
   function toggleTheme() {
     const nextTheme: Theme = theme === "dark" ? "light" : "dark";
+    clientTheme = nextTheme;
     document.documentElement.dataset.theme = nextTheme;
     window.localStorage.setItem("dashboard-theme", nextTheme);
     window.dispatchEvent(new Event("dashboard-theme-change"));

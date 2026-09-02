@@ -20,7 +20,7 @@ export type RevenueTxnInsert = {
 type Lookup = {
   grades: { grade_id: number; grade: string }[];
   products: { product_id: number; product_code: string }[];
-  agents: { agent_id: number; agent_name: string; branch_id: number | null }[];
+  agents: { agent_id: number; agent_name: string; agent_email: string | null }[];
   branches: { branch_id: number; branch_name: string }[];
   academicYears: { academic_year: string }[];
   schools: { npsn: string }[];
@@ -146,7 +146,7 @@ export function transformRevenueCsv(
     "Invoice",
     "Class Name",
     "New Product Type",
-    "Agent Name",
+    "Agent Email",
     "Product Cluster",
     "Cluster",
     "Payment Category",
@@ -180,12 +180,13 @@ export function transformRevenueCsv(
     throw new Error('Agent "OEC/Others" was not found in t_agent.');
   }
 
-  const agentsByNameBranch = new Map<string, Lookup["agents"]>();
+  const agentsByEmail = new Map<string, Lookup["agents"]>();
   for (const agent of lookup.agents) {
-    const key = `${normalize(agent.agent_name)}|${agent.branch_id ?? ""}`;
-    const current = agentsByNameBranch.get(key) ?? [];
+    const key = String(agent.agent_email ?? "").trim().toLowerCase();
+    if (!key) continue;
+    const current = agentsByEmail.get(key) ?? [];
     current.push(agent);
-    agentsByNameBranch.set(key, current);
+    agentsByEmail.set(key, current);
   }
 
   const issues: TransformReport["issues"] = {};
@@ -204,8 +205,8 @@ export function transformRevenueCsv(
     const gradeValue = nullable(row["Class Name"]);
     const gradeId = gradeByName.get(normalize(gradeValue)) ?? null;
     const productId = productIdForSourceValue(row["New Product Type"], productByCode);
-    const agentName = nullable(row["Agent Name"]);
-    const candidates = agentsByNameBranch.get(`${normalize(agentName)}|${branchId ?? ""}`) ?? [];
+    const agentEmail = nullable(row["Agent Email"]);
+    const candidates = agentsByEmail.get(agentEmail.toLowerCase()) ?? [];
     const hasOecDiscount = normalize(row["Discount Code"]).includes("oec");
     const agentId = hasOecDiscount
       ? oecAgent.agent_id
@@ -221,7 +222,7 @@ export function transformRevenueCsv(
     if (!month) addIssue(issues, "invalidMonth", row.Month);
     if (gradeValue && gradeId === null) addIssue(issues, "unmappedGrade", gradeValue);
     if (productId === null) addIssue(issues, "unmappedProduct", row["New Product Type"]);
-    if (agentName && agentId === null) addIssue(issues, candidates.length > 1 ? "ambiguousAgent" : "unmappedAgent", `${agentName} | branch_id=${branchId ?? "NULL"}`);
+    if (agentEmail && agentId === null) addIssue(issues, candidates.length > 1 ? "ambiguousAgent" : "unmappedAgent", agentEmail);
     if (destinationValue && destinationBranchId === null) addIssue(issues, "unmappedDestinationBranch", destinationValue);
     if (branchId === null) addIssue(issues, "unmappedBranch", row.Cluster);
     if (!academicYearSet.has(row["Academic Year"])) addIssue(issues, "unmappedAcademicYear", row["Academic Year"]);

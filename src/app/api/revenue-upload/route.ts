@@ -46,9 +46,9 @@ async function fetchLookup() {
         `Lookup t_revenue_products failed: ${error instanceof Error ? error.message : error}`,
       );
     }),
-    fetchAll<{ agent_id: number; agent_name: string; branch_id: number | null }>(
+    fetchAll<{ agent_id: number; agent_name: string; agent_email: string | null }>(
       "t_agent",
-      "agent_id,agent_name,branch_id",
+      "agent_id,agent_name,agent_email",
     ).catch((error) => {
       throw new Error(`Lookup t_agent failed: ${error instanceof Error ? error.message : error}`);
     }),
@@ -138,19 +138,45 @@ export async function POST(request: Request) {
     }
 
     const supabase = createSupabaseServiceRoleClient();
-    const { data: replacementResult, error: replaceError } = await supabase.rpc(
-      "replace_revenue_txn_by_dates",
-      { p_rows: transformed.rows },
-    );
-    if (replaceError) {
-      throw new Error(`Replace failed: ${replaceError.message}`);
+    // Keep each RPC payload small enough for Supabase's statement timeout.
+    // Never split one payment date across batches: the replace RPC deletes
+    // existing rows for every date in its payload before inserting the rows.
+    const rowsByDate = new Map<string, typeof transformed.rows>();
+    for (const row of transformed.rows) {
+      const rows = rowsByDate.get(row.payment_date) ?? [];
+      rows.push(row);
+      rowsByDate.set(row.payment_date, rows);
+    }
+    const batches: typeof transformed.rows[] = [];
+    let currentBatch: typeof transformed.rows = [];
+    for (const dateRows of rowsByDate.values()) {
+      if (currentBatch.length && currentBatch.length + dateRows.length > 1000) {
+        batches.push(currentBatch);
+        currentBatch = [];
+      }
+      currentBatch.push(...dateRows);
+    }
+    if (currentBatch.length) batches.push(currentBatch);
+
+    let inserted = 0;
+    let deleted = 0;
+    for (const [index, batch] of batches.entries()) {
+      const { data: replacementResult, error: replaceError } = await supabase.rpc(
+        "replace_revenue_txn_by_dates",
+        { p_rows: batch },
+      );
+      if (replaceError) {
+        throw new Error(`Replace failed on batch ${index + 1}/${batches.length}: ${replaceError.message}`);
+      }
+      inserted += Number(replacementResult?.inserted_rows ?? batch.length);
+      deleted += Number(replacementResult?.deleted_rows ?? 0);
     }
 
     return Response.json({
       message: "Replace and import completed successfully.",
-      inserted: replacementResult?.inserted_rows ?? transformed.rows.length,
-      deleted: replacementResult?.deleted_rows ?? 0,
-      replacedDates: replacementResult?.replaced_dates ?? replacementDates.length,
+      inserted,
+      deleted,
+      replacedDates: replacementDates.length,
       replacementDates,
       report: transformed.report,
     });
