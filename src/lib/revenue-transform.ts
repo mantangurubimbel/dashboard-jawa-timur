@@ -17,7 +17,7 @@ export type RevenueTxnInsert = {
   is_bulkbuying: boolean;
 };
 
-type Lookup = {
+export type RevenueLookup = {
   grades: { grade_id: number; grade: string }[];
   products: { product_id: number; product_code: string }[];
   agents: { agent_id: number; agent_name: string; agent_email: string | null }[];
@@ -26,10 +26,19 @@ type Lookup = {
   schools: { npsn: string }[];
 };
 
+export type RevenueRawRow = Record<string, string>;
+
+export type InvalidRevenueRow = {
+  rowNumber: number;
+  raw: RevenueRawRow;
+  missingFields: string[];
+};
+
 export type TransformReport = {
   inputRows: number;
   filteredRows: number;
   outputRows: number;
+  invalidRows: number;
   oecDiscountOverrideRows: number;
   issues: Record<string, { value: string; count: number }[]>;
 };
@@ -132,7 +141,7 @@ function productIdForSourceValue(value: unknown, productByCode: Map<string, numb
 export function transformRevenueCsv(
   csvText: string,
   startDate: string,
-  lookup: Lookup,
+  lookup: RevenueLookup,
 ) {
   const rawRows = parse(csvText, {
     columns: true,
@@ -146,6 +155,7 @@ export function transformRevenueCsv(
     "Invoice",
     "Class Name",
     "New Product Type",
+    "Agent Name",
     "Agent Email",
     "Product Cluster",
     "Cluster",
@@ -162,6 +172,19 @@ export function transformRevenueCsv(
   if (missingColumn) {
     throw new Error(`Required column not found: ${missingColumn}`);
   }
+
+  return transformRevenueRows(
+    rawRows,
+    startDate,
+    lookup,
+  );
+}
+
+export function transformRevenueRows(
+  rawRows: RevenueRawRow[],
+  startDate: string,
+  lookup: RevenueLookup,
+) {
 
   const gradeByName = new Map(lookup.grades.map((row) => [normalize(row.grade), row.grade_id]));
   const productByCode = new Map(
@@ -180,7 +203,7 @@ export function transformRevenueCsv(
     throw new Error('Agent "OEC/Others" was not found in t_agent.');
   }
 
-  const agentsByEmail = new Map<string, Lookup["agents"]>();
+  const agentsByEmail = new Map<string, RevenueLookup["agents"]>();
   for (const agent of lookup.agents) {
     const key = String(agent.agent_email ?? "").trim().toLowerCase();
     if (!key) continue;
@@ -190,13 +213,27 @@ export function transformRevenueCsv(
   }
 
   const issues: TransformReport["issues"] = {};
-  const filteredRows = rawRows.filter((row) => {
-    const paymentDate = parseEnglishDate(row["Payment Date"]);
-    return paymentDate && paymentDate >= startDate;
+  const filteredRows = rawRows
+    .map((row, index) => ({ row, rowNumber: index + 2 }))
+    .filter(({ row }) => {
+      const paymentDate = parseEnglishDate(row["Payment Date"]);
+      return paymentDate && paymentDate >= startDate;
+    });
+
+  const invalidRows: InvalidRevenueRow[] = [];
+  const validRows = filteredRows.filter(({ row, rowNumber }) => {
+    const missingFields = ["Agent Name", "Agent Email", "Cluster"].filter(
+      (field) => !nullable(row[field]),
+    );
+    if (missingFields.length) {
+      invalidRows.push({ rowNumber, raw: row, missingFields });
+      return false;
+    }
+    return true;
   });
   let oecDiscountOverrideRows = 0;
 
-  const rows: RevenueTxnInsert[] = filteredRows.map((row) => {
+  const rows: RevenueTxnInsert[] = validRows.map(({ row }) => {
     const paymentDate = parseEnglishDate(row["Payment Date"]);
     const month = normalizeMonth(row.Month);
     const branchId = branchByName.get(normalize(row.Cluster)) ?? null;
@@ -205,14 +242,18 @@ export function transformRevenueCsv(
     const gradeValue = nullable(row["Class Name"]);
     const gradeId = gradeByName.get(normalize(gradeValue)) ?? null;
     const productId = productIdForSourceValue(row["New Product Type"], productByCode);
+    const agentName = nullable(row["Agent Name"]);
     const agentEmail = nullable(row["Agent Email"]);
     const candidates = agentsByEmail.get(agentEmail.toLowerCase()) ?? [];
+    const nameCandidate = candidates.find(
+      (candidate) => normalize(candidate.agent_name) === normalize(agentName),
+    );
     const hasOecDiscount = normalize(row["Discount Code"]).includes("oec");
     const agentId = hasOecDiscount
       ? oecAgent.agent_id
       : candidates.length === 1
         ? candidates[0].agent_id
-        : null;
+        : nameCandidate?.agent_id ?? null;
     const schoolNpsn = nullable(row.school_npsn);
     const paymentCategory = nullable(row["Payment Category"]);
     const paymentOption = nullable(row["Payment Option"]);
@@ -254,8 +295,10 @@ export function transformRevenueCsv(
       inputRows: rawRows.length,
       filteredRows: filteredRows.length,
       outputRows: rows.length,
+      invalidRows: invalidRows.length,
       oecDiscountOverrideRows,
       issues,
     } satisfies TransformReport,
+    invalidRows,
   };
 }

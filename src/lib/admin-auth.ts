@@ -21,3 +21,12 @@ export async function requireAdmin() {
   if (!isAdminEmail(user.email)) redirect("/forbidden");
   return { supabase, user };
 }
+
+export async function requireAdminApi() {
+  const supabase = await createSupabaseAuthServerClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user?.email || !isAdminEmail(user.email)) return null;
+  return { supabase, user };
+}

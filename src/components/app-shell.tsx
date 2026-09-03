@@ -45,8 +45,8 @@ const navigation = [
     { href: "/all-time-performance/branch", label: "Branch", icon: GitBranch },
     { href: "/all-time-performance/agent", label: "Agent", icon: UsersRound },
   ] },
-  { href: "/settings", label: "Settings", icon: Settings2 },
   { href: "https://data-bayar-jatim.vercel.app", label: "Data Bayar", icon: Wallet, external: true },
+  { href: "/settings", label: "Settings", icon: Settings2 },
 ];
 
 export function AppShell({

@@ -4,7 +4,7 @@ import { FileUp, LoaderCircle, X } from "lucide-react";
 import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type TargetKind = "annual" | "monthly";
+type TargetKind = "annual" | "monthly" | "weekly";
 
 type ImportResult = {
   message?: string;
@@ -91,10 +91,12 @@ export function ImportRevenueTargetButton() {
             <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
               <div>
                 <h2 id="import-target-title" className="text-lg font-semibold text-slate-950">
-                  Import Target Revenue
+                  {kind === "weekly" ? "Import Weekly Agent Target" : "Import Target Revenue"}
                 </h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Targets are upserted by academic year and branch.
+                  {kind === "weekly"
+                    ? "Weekly targets are upserted by agent and Monday week start."
+                    : "Targets are upserted by academic year and branch."}
                 </p>
               </div>
               <button
@@ -109,8 +111,8 @@ export function ImportRevenueTargetButton() {
             </div>
 
             <div className="space-y-5 px-5 py-5">
-              <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1">
-                {(["monthly", "annual"] as TargetKind[]).map((targetKind) => (
+              <div className="grid grid-cols-3 gap-2 rounded-md bg-slate-100 p-1">
+                {(["monthly", "annual", "weekly"] as TargetKind[]).map((targetKind) => (
                   <button
                     type="button"
                     key={targetKind}
@@ -121,7 +123,11 @@ export function ImportRevenueTargetButton() {
                         : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
-                    {targetKind === "monthly" ? "Monthly Target" : "Annual Target"}
+                    {targetKind === "monthly"
+                      ? "Monthly Target"
+                      : targetKind === "annual"
+                        ? "Annual Target"
+                        : "Weekly Agent Target"}
                   </button>
                 ))}
               </div>
@@ -137,7 +143,9 @@ export function ImportRevenueTargetButton() {
                 <span className="mt-1 block text-xs text-slate-500">
                   {kind === "monthly"
                     ? "Header: academic_year, branch_id or branch_name, month, target_revenue"
-                    : "Header: academic_year, branch_id or branch_name, target_revenue"}
+                    : kind === "annual"
+                      ? "Header: academic_year, branch_id or branch_name, target_revenue"
+                      : "Header: agent_id or agent_email or agent_name, academic_year, month, week_start, branch_id or branch_name, target_revenue"}
                 </span>
               </label>
 

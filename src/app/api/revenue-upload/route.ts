@@ -1,86 +1,18 @@
 import { transformRevenueCsv } from "@/lib/revenue-transform";
-import {
-  createSupabaseServiceRoleClient,
-} from "@/lib/supabase-server";
+import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
+import { fetchRevenueLookup } from "@/lib/revenue-upload";
+import { requireAdminApi } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
-async function fetchLookup() {
-  const supabase = createSupabaseServiceRoleClient();
-
-  async function fetchAll<T>(table: string, columns: string) {
-    const rows: T[] = [];
-    const pageSize = 1000;
-
-    for (let from = 0; ; from += pageSize) {
-      const { data, error } = await supabase
-        .from(table)
-        .select(columns)
-        .range(from, from + pageSize - 1);
-
-      if (error) {
-        throw new Error(`${table}: ${error.message}`);
-      }
-
-      const page = data as T[];
-      rows.push(...page);
-      if (page.length < pageSize) {
-        return rows;
-      }
-    }
-  }
-
-  const [grades, products, agents, branches, academicYears, schools] = await Promise.all([
-    fetchAll<{ grade_id: number; grade: string }>("t_grade", "grade_id,grade").catch(
-      (error) => {
-        throw new Error(`Lookup t_grade failed: ${error instanceof Error ? error.message : error}`);
-      },
-    ),
-    fetchAll<{ product_id: number; product_code: string }>(
-      "t_revenue_products",
-      "product_id,product_code",
-    ).catch((error) => {
-      throw new Error(
-        `Lookup t_revenue_products failed: ${error instanceof Error ? error.message : error}`,
-      );
-    }),
-    fetchAll<{ agent_id: number; agent_name: string; agent_email: string | null }>(
-      "t_agent",
-      "agent_id,agent_name,agent_email",
-    ).catch((error) => {
-      throw new Error(`Lookup t_agent failed: ${error instanceof Error ? error.message : error}`);
-    }),
-    fetchAll<{ branch_id: number; branch_name: string }>("t_branch", "branch_id,branch_name").catch(
-      (error) => {
-        throw new Error(`Lookup t_branch failed: ${error instanceof Error ? error.message : error}`);
-      },
-    ),
-    fetchAll<{ academic_year: string }>("t_academic_year", "academic_year").catch((error) => {
-      throw new Error(
-        `Lookup t_academic_year failed: ${error instanceof Error ? error.message : error}`,
-      );
-    }),
-    fetchAll<{ npsn: string }>("t_master_school", "npsn").catch((error) => {
-      throw new Error(
-        `Lookup t_master_school failed: ${error instanceof Error ? error.message : error}`,
-      );
-    }),
-  ]);
-
-  return {
-    grades,
-    products,
-    agents,
-    branches,
-    academicYears,
-    schools,
-  };
-}
-
 export async function POST(request: Request) {
   try {
+    if (!(await requireAdminApi())) {
+      return Response.json({ error: "Only administrators can upload revenue data." }, { status: 403 });
+    }
+
     const formData = await request.formData();
     const file = formData.get("file");
     const startDate = String(formData.get("startDate") ?? "").trim();
@@ -98,7 +30,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "The file must be in CSV format." }, { status: 400 });
     }
 
-    const lookup = await fetchLookup();
+    const lookup = await fetchRevenueLookup();
     const csvText = await file.text();
     const transformed = transformRevenueCsv(csvText, startDate, lookup);
 
@@ -106,7 +38,7 @@ export async function POST(request: Request) {
       return Response.json({ error: "The CSV contains no data rows." }, { status: 400 });
     }
 
-    if (!transformed.rows.length) {
+    if (!transformed.rows.length && !transformed.invalidRows.length) {
       return Response.json({
         message: "No data matches the date filter.",
         report: transformed.report,
@@ -119,20 +51,25 @@ export async function POST(request: Request) {
 
     if (mode !== "commit") {
       const supabase = createSupabaseServiceRoleClient();
-      const { count, error } = await supabase
-        .from("t_revenue_txn")
-        .select("id", { count: "exact", head: true })
-        .in("payment_date", replacementDates);
+      let existingRows = 0;
+      if (replacementDates.length) {
+        const { count, error } = await supabase
+          .from("t_revenue_txn")
+          .select("id", { count: "exact", head: true })
+          .in("payment_date", replacementDates);
 
-      if (error) {
-        throw new Error(`Existing data preview failed: ${error.message}`);
+        if (error) {
+          throw new Error(`Existing data preview failed: ${error.message}`);
+        }
+        existingRows = count ?? 0;
       }
 
       return Response.json({
         message: "Replace preview is ready for confirmation.",
         preview: true,
-        existingRows: count ?? 0,
+        existingRows,
         replacementDates,
+        failedRows: transformed.invalidRows,
         report: transformed.report,
       });
     }
@@ -172,12 +109,48 @@ export async function POST(request: Request) {
       deleted += Number(replacementResult?.deleted_rows ?? 0);
     }
 
+    let failedRows: Array<{
+      id: number;
+      batchId: string;
+      rowNumber: number;
+      raw: Record<string, string>;
+      missingFields: string[];
+    }> = [];
+    if (transformed.invalidRows.length) {
+      const batchId = crypto.randomUUID();
+      const { data: issueRows, error: issueError } = await supabase
+        .from("t_revenue_upload_issue")
+        .insert(
+          transformed.invalidRows.map((issue) => ({
+            batch_id: batchId,
+            source_row: issue.rowNumber,
+            start_date: startDate,
+            raw_row: issue.raw,
+            missing_fields: issue.missingFields,
+          })),
+        )
+        .select("id,batch_id,source_row,raw_row,missing_fields");
+      if (issueError) {
+        throw new Error(`Failed to save incomplete rows: ${issueError.message}`);
+      }
+      failedRows = (issueRows ?? []).map((issue) => ({
+        id: issue.id as number,
+        batchId: issue.batch_id as string,
+        rowNumber: issue.source_row as number,
+        raw: issue.raw_row as Record<string, string>,
+        missingFields: (issue.missing_fields as string[]) ?? [],
+      }));
+    }
+
     return Response.json({
-      message: "Replace and import completed successfully.",
+      message: transformed.invalidRows.length
+        ? "Valid rows were imported. Incomplete rows are ready for completion."
+        : "Replace and import completed successfully.",
       inserted,
       deleted,
       replacedDates: replacementDates.length,
       replacementDates,
+      failedRows,
       report: transformed.report,
     });
   } catch (error) {

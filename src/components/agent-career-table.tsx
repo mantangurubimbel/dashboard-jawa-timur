@@ -15,7 +15,7 @@ export function AgentCareerTable({ rows, branches }: { rows: AgentCareerWeeklyRo
   const pageCount = Math.max(1, Math.ceil(sortedRows.length / 20));
   const pageRows = sortedRows.slice((page - 1) * 20, page * 20);
   return (
-    <div className="grid gap-6 xl:grid-cols-[2fr_1fr]">
+    <div className="grid grid-cols-1 gap-6">
       <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
         <div className="border-b border-slate-200 px-4 py-3">
           <h2 className="text-base font-semibold text-slate-950">Weekly Performance</h2>
