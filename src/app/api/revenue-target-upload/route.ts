@@ -2,7 +2,9 @@ import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 import {
   academicMonthNumber,
   type AgentWeeklyTargetRow,
+  type BranchWeeklyTargetRow,
   type RevenueTargetRow,
+  transformBranchWeeklyTargetCsv,
   transformAgentWeeklyTargetCsv,
   RevenueTargetImportKind,
   transformRevenueTargetCsv,
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) {
       return Response.json({ error: "A CSV file is required." }, { status: 400 });
     }
-    if (!["annual", "monthly", "weekly"].includes(kind)) {
+    if (!["annual", "monthly", "weekly", "branch_weekly"].includes(kind)) {
       return Response.json({ error: "Invalid target type." }, { status: 400 });
     }
     if (!file.name.toLowerCase().endsWith(".csv")) {
@@ -54,7 +56,9 @@ export async function POST(request: Request) {
     const csvText = await file.text();
     const transformed = kind === "weekly"
       ? transformAgentWeeklyTargetCsv(csvText, { agents, branches, academicYears })
-      : transformRevenueTargetCsv(csvText, kind, { branches, academicYears });
+      : kind === "branch_weekly"
+        ? transformBranchWeeklyTargetCsv(csvText, { branches, academicYears })
+        : transformRevenueTargetCsv(csvText, kind, { branches, academicYears });
 
     if (transformed.report.inputRows === 0) {
       return Response.json({ error: "The CSV contains no data rows." }, { status: 400 });
@@ -90,6 +94,26 @@ export async function POST(request: Request) {
       if (error) throw new Error(`Target import failed: ${error.message}`);
       return Response.json({
         message: "Weekly agent target import completed successfully.",
+        imported: importedRows?.length ?? payload.length,
+        report: transformed.report,
+      });
+    }
+
+    if (kind === "branch_weekly") {
+      const payload = (transformed.rows as BranchWeeklyTargetRow[]).map((row) => ({
+        academic_year: row.academic_year,
+        month: row.month,
+        week_start: row.week_start,
+        branch_id: row.branch_id,
+        target_revenue: row.target_revenue,
+      }));
+      const { data: importedRows, error } = await supabase
+        .from("t_branch_weekly_target")
+        .upsert(payload, { onConflict: "branch_id,week_start", ignoreDuplicates: false })
+        .select("id");
+      if (error) throw new Error(`Target import failed: ${error.message}`);
+      return Response.json({
+        message: "Weekly branch target import completed successfully.",
         imported: importedRows?.length ?? payload.length,
         report: transformed.report,
       });

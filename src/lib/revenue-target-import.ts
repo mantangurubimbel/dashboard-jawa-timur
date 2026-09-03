@@ -1,6 +1,6 @@
 import { parse } from "csv-parse/sync";
 
-export type RevenueTargetImportKind = "annual" | "monthly" | "weekly";
+export type RevenueTargetImportKind = "annual" | "monthly" | "weekly" | "branch_weekly";
 
 export type RevenueTargetRow = {
   academic_year: string;
@@ -143,6 +143,14 @@ export type AgentWeeklyTargetRow = {
   target_revenue: number;
 };
 
+export type BranchWeeklyTargetRow = {
+  academic_year: string;
+  month: string;
+  week_start: string;
+  branch_id: number;
+  target_revenue: number;
+};
+
 export function transformAgentWeeklyTargetCsv(
   csvText: string,
   lookups: {
@@ -266,6 +274,100 @@ export function transformAgentWeeklyTargetCsv(
     rows,
     report: {
       kind: "weekly" as const,
+      inputRows: records.length,
+      outputRows: rows.length,
+      invalidRows: errors.length,
+      duplicateRows: errors.filter((error) => error.message.startsWith("Duplicate")).length,
+      errors: errors.slice(0, 50),
+    } satisfies RevenueTargetImportReport,
+  };
+}
+
+export function transformBranchWeeklyTargetCsv(
+  csvText: string,
+  lookups: {
+    branches: BranchLookup[];
+    academicYears: AcademicYearLookup[];
+  },
+) {
+  const records = parse(csvText, {
+    columns: true,
+    bom: true,
+    skip_empty_lines: true,
+  }) as Record<string, string>[];
+  const errors: { row: number; message: string }[] = [];
+  const branchByName = new Map(
+    lookups.branches.map((branch) => [branch.branch_name.toLowerCase(), branch.branch_id]),
+  );
+  const branchIds = new Set(lookups.branches.map((branch) => branch.branch_id));
+  const academicYears = new Set(lookups.academicYears.map((row) => row.academic_year));
+  const seen = new Set<string>();
+  const rows: BranchWeeklyTargetRow[] = [];
+
+  records.forEach((record, index) => {
+    const rowNumber = index + 2;
+    const academicYear = normalize(record.academic_year ?? record.AcademicYear ?? record["Academic Year"]);
+    if (!academicYears.has(academicYear)) {
+      errors.push({ row: rowNumber, message: `Academic year not found: ${academicYear}` });
+      return;
+    }
+
+    const month = normalize(record.month ?? record.Month ?? record.MonthName);
+    if (academicMonthNumber(month.split(/\s+/)[0] ?? "") === null || !/^\w{3} \d{4}$/.test(month)) {
+      errors.push({ row: rowNumber, message: `Invalid month: ${month}. Use e.g. Aug 2026.` });
+      return;
+    }
+
+    const weekStart = normalize(record.week_start ?? record.weekStart ?? record.WeekStart ?? record["Week Start"]);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(weekStart)) {
+      errors.push({ row: rowNumber, message: "week_start must use YYYY-MM-DD." });
+      return;
+    }
+    const parsedWeekStart = new Date(`${weekStart}T00:00:00Z`);
+    if (
+      Number.isNaN(parsedWeekStart.getTime())
+      || parsedWeekStart.toISOString().slice(0, 10) !== weekStart
+      || parsedWeekStart.getUTCDay() !== 1
+    ) {
+      errors.push({ row: rowNumber, message: "week_start must be a Monday." });
+      return;
+    }
+
+    const rawBranchId = normalize(record.branch_id ?? record.BranchId ?? record["Branch ID"]);
+    const branchName = normalize(record.branch_name ?? record.BranchName ?? record["Branch Name"]);
+    const branchId = rawBranchId
+      ? Number(rawBranchId)
+      : branchByName.get(branchName.toLowerCase());
+    if (!branchId || !Number.isSafeInteger(branchId) || !branchIds.has(branchId) || branchId === 100) {
+      errors.push({ row: rowNumber, message: "Branch ID/name is invalid or excluded." });
+      return;
+    }
+
+    const targetRevenue = parseAmount(record.target_revenue ?? record.TargetRevenue ?? record["Target Revenue"]);
+    if (targetRevenue === null) {
+      errors.push({ row: rowNumber, message: "target_revenue must be an integer >= 0." });
+      return;
+    }
+
+    const key = `${branchId}|${weekStart}`;
+    if (seen.has(key)) {
+      errors.push({ row: rowNumber, message: `Duplicate branch weekly target: ${key}` });
+      return;
+    }
+    seen.add(key);
+    rows.push({
+      academic_year: academicYear,
+      month,
+      week_start: weekStart,
+      branch_id: branchId,
+      target_revenue: targetRevenue,
+    });
+  });
+
+  return {
+    rows,
+    report: {
+      kind: "branch_weekly" as const,
       inputRows: records.length,
       outputRows: rows.length,
       invalidRows: errors.length,
