@@ -34,6 +34,11 @@ type GradeRow = {
   level: string | null;
 };
 
+type AcademicYearRow = {
+  academic_year: string;
+  is_active: boolean | null;
+};
+
 export type StudentFilterOptions = {
   academicYears: string[];
   branches: { id: string; label: string; regionId: string }[];
@@ -291,7 +296,7 @@ export async function getStudentOverviewData(filters: {
     : scope.length
       ? { branch_id: `in.(${scope.join(",")})` }
       : { branch_id: "in.(-1)" };
-  const [rawStudents, branches, grades, schoolRows] = await Promise.all([
+  const [rawStudents, branches, grades, schoolRows, academicYearRows] = await Promise.all([
     fetchAll<StudentRow>(
       "t_students",
       "nis,payment_date,academic_year,user_serial,user_name,user_phone,birth_date,email,grade_id,npsn,rombel_id,agent_id,status,branch_id",
@@ -307,16 +312,31 @@ export async function getStudentOverviewData(filters: {
       undefined,
       cacheInit,
     ),
+    fetchAll<AcademicYearRow>(
+      "t_academic_year",
+      "academic_year,is_active",
+      "academic_year.desc",
+      cacheInit,
+    ),
   ]);
 
   const students = rawStudents.filter((row) => row.status !== "Deleted");
-  const academicYears = Array.from(new Set(students.map((row) => row.academic_year))).sort(
-    (a, b) => b.localeCompare(a, undefined, { numeric: true }),
+  const dataAcademicYears = Array.from(new Set(students.map((row) => row.academic_year)));
+  const activeAcademicYears = academicYearRows
+    .filter((row) => row.is_active === true)
+    .map((row) => row.academic_year);
+  const academicYears = Array.from(new Set([...activeAcademicYears, ...dataAcademicYears])).sort(
+    (a, b) => {
+      const activeDifference = Number(activeAcademicYears.includes(b)) - Number(activeAcademicYears.includes(a));
+      return activeDifference || b.localeCompare(a, undefined, { numeric: true });
+    },
   );
   const currentAcademicYear =
     scopedFilters.academicYear && academicYears.includes(scopedFilters.academicYear)
       ? scopedFilters.academicYear
-      : academicYears[0] ?? "26/27";
+      : activeAcademicYears[0] ??
+        dataAcademicYears[0] ??
+        "26/27";
   const branchById = new Map(branches.map((row) => [row.branch_id, row]));
   const gradeById = new Map(grades.map((row) => [row.grade_id, row]));
   const schoolByNpsn = new Map(schoolRows.map((row) => [row.npsn, row.name]));
