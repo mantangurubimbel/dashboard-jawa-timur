@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     if (!(file instanceof File)) {
       return Response.json({ error: "A CSV file is required." }, { status: 400 });
     }
-    if (!["annual", "monthly", "weekly", "branch_weekly"].includes(kind)) {
+    if (!["annual", "weekly", "branch_weekly"].includes(kind)) {
       return Response.json({ error: "Invalid target type." }, { status: 400 });
     }
     if (!file.name.toLowerCase().endsWith(".csv")) {

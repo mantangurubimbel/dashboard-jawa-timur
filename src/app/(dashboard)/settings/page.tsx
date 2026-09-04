@@ -7,6 +7,9 @@ import { AdminUserTable } from "@/components/admin-user-table";
 import { DASHBOARD_EXCLUDED_BRANCH_IDS } from "@/lib/dashboard-access";
 import { toggleDashboardMaintenance } from "@/app/(dashboard)/settings/actions";
 import { FormPendingIndicator, PendingSubmitButton } from "@/components/form-submit-controls";
+import { SettingsTabs } from "@/components/settings-tabs";
+import { SettingsTargetTable } from "@/components/settings-target-table";
+import { getSettingsTargetData } from "@/lib/settings-target-data";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +22,7 @@ async function fetchCount(table: string, query = "") {
 
 export default async function SettingsPage() {
   await requireAdmin();
-  const [users, branches, roles, userRows, positionRows, userBranchRows, branchRows, maintenanceRows] = await Promise.all([
+  const [users, branches, roles, userRows, positionRows, userBranchRows, branchRows, maintenanceRows, targetData] = await Promise.all([
     fetchCount("t_app_user"),
     fetchCount("t_branch", `&branch_id=not.in.(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})`),
     fetchCount("t_role"),
@@ -28,6 +31,7 @@ export default async function SettingsPage() {
     supabaseRestFetch(`t_dashboard_user_branch?select=user_id,branch_id&branch_id=not.in.(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})&limit=5000`),
     supabaseRestFetch(`t_branch?select=branch_id,branch_name&branch_id=not.in.(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})&order=branch_name&limit=1000`),
     supabaseRestFetch("t_dashboard_maintenance?select=is_active,message&id=eq.1&limit=1"),
+    getSettingsTargetData(),
   ]);
   const maintenance = maintenanceRows.ok
     ? ((await maintenanceRows.json()) as { is_active?: boolean; message?: string }[])[0]
@@ -52,17 +56,18 @@ export default async function SettingsPage() {
         <p className="mt-2 text-sm text-slate-600">Manage users, access permissions, and revenue data processes.</p>
       </header>
 
-      <section className="grid gap-4 sm:grid-cols-3">
-        {[["User", users], ["Branch", branches], ["Role", roles]].map(([label, value]) => (
-          <div key={String(label)} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
-            <p className="text-sm text-slate-500">{label}</p>
-            <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="grid gap-6 lg:grid-cols-2">
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+      <SettingsTabs
+        overview={(
+          <div className="grid gap-6">
+            <section className="grid gap-4 sm:grid-cols-3">
+              {[["User", users], ["Branch", branches], ["Role", roles]].map(([label, value]) => (
+                <div key={String(label)} className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
+                  <p className="text-sm text-slate-500">{label}</p>
+                  <p className="mt-2 text-2xl font-semibold text-slate-950">{value}</p>
+                </div>
+              ))}
+            </section>
+            <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-base font-semibold text-slate-950">Website Maintenance</h2>
@@ -113,25 +118,44 @@ export default async function SettingsPage() {
               <FormPendingIndicator />
             </div>
           </form>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-950">Revenue Data</h2>
-          <p className="mt-1 text-sm text-slate-500">Upload raw transactions and manage branch and agent targets.</p>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <UploadRawDataButton />
-            <ImportRevenueTargetButton />
+            </div>
           </div>
-        </div>
-        <div className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
-          <h2 className="text-base font-semibold text-slate-950">User & Access</h2>
-          <p className="mt-1 text-sm leading-6 text-slate-600">
-            Manage each user&apos;s Revenue Dashboard and branch access using the table below.
-          </p>
-        </div>
-      </section>
-      <AdminUserTable
-        users={adminUsers}
-        branchOptions={Array.from(branchesMap, ([id, name]) => ({ id, name }))}
+        )}
+        uploads={(
+          <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-base font-semibold text-slate-950">Data Upload</h2>
+            <p className="mt-1 text-sm text-slate-500">Upload raw transactions and target files using the validated import flow.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <UploadRawDataButton />
+            </div>
+          </section>
+        )}
+        targets={(
+          <div className="grid gap-6">
+            <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-950">Target Upload</h2>
+              <p className="mt-1 text-sm text-slate-500">Import annual, monthly, weekly agent, or weekly branch targets.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <ImportRevenueTargetButton />
+              </div>
+            </section>
+            <SettingsTargetTable data={targetData} />
+          </div>
+        )}
+        access={(
+          <div className="grid gap-6">
+            <section className="rounded-md border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-base font-semibold text-slate-950">User & Access</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-600">
+                Manage each user&apos;s Revenue Dashboard status and branch access using the table below.
+              </p>
+            </section>
+            <AdminUserTable
+              users={adminUsers}
+              branchOptions={Array.from(branchesMap, ([id, name]) => ({ id, name }))}
+            />
+          </div>
+        )}
       />
     </div>
   );

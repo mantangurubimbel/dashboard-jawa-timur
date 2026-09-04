@@ -13,7 +13,6 @@ type RevenueRow = {
   month: string;
   branch_id: number | null;
   revenue: number | string | null;
-  is_bulkbuying: boolean;
 };
 
 export type BranchCareerMonth = { id: string; label: string };
@@ -153,8 +152,8 @@ export async function getBranchCareerData({
     ),
     fetchAll<RevenueRow>(
       "t_revenue_txn",
-      "payment_date,month,branch_id,revenue,is_bulkbuying",
-      { ...scopedBranchQuery, is_bulkbuying: "eq.false" },
+      "payment_date,month,branch_id,revenue",
+      scopedBranchQuery,
     ),
   ]);
 

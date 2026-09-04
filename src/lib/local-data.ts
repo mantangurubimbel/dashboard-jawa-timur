@@ -70,8 +70,11 @@ type RevenueAnnualTargetLookup = {
   target_revenue: number | string | null;
 };
 
-type RevenueMonthlyTargetLookup = RevenueAnnualTargetLookup & {
-  month_number: number;
+type RevenueBranchWeeklyTargetLookup = {
+  academic_year: string;
+  branch_id: number;
+  month: string;
+  target_revenue: number | string | null;
 };
 
 const scopedSnapshotFetchInit: SupabaseFetchInit = {
@@ -724,11 +727,11 @@ export async function getBranchRevenuePerformance(
   if (scope !== null) {
     if (!scope.length) return [];
     const branchQuery: Record<string, string> = scope.length ? { branch_id: `in.(${scope.join(",")})` } : {};
-    const [branches, rows, annualTargets, monthlyTargets] = await Promise.all([
+    const [branches, rows, annualTargets, branchWeeklyTargets] = await Promise.all([
       fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
       fetchTransactions({ academicYear }, scope, { useStoredAcademicYear: false, init: { next: { revalidate: 30, tags: ["revenue-dashboard"] } } }),
       fetchAll<RevenueAnnualTargetLookup>("t_revenue_annual_target", "academic_year,branch_id,target_revenue", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
-      fetchAll<RevenueMonthlyTargetLookup>("t_revenue_monthly_target", "academic_year,branch_id,month_number,target_revenue", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
+      fetchAll<RevenueBranchWeeklyTargetLookup>("t_branch_weekly_target", "academic_year,branch_id,month,target_revenue", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard", "agent-weekly-targets"] } }, branchQuery),
     ]);
     const selectedRows = rows
       .map(toTransactionRow)
@@ -743,9 +746,16 @@ export async function getBranchRevenuePerformance(
       if (row.branchId !== null) revenueByBranch.set(row.branchId, (revenueByBranch.get(row.branchId) ?? 0) + row.revenue);
     }
     const targetByBranch = new Map<number, number>();
-    for (const target of (month ? monthlyTargets.filter((item) => item.month_number === academicMonthNumber(month)) : annualTargets)) {
-      if (target.academic_year !== academicYear) continue;
-      targetByBranch.set(target.branch_id, (targetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue));
+    if (month) {
+      for (const target of branchWeeklyTargets) {
+        if (target.academic_year !== academicYear || target.month.split(" ")[0] !== month) continue;
+        targetByBranch.set(target.branch_id, (targetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue));
+      }
+    } else {
+      for (const target of annualTargets) {
+        if (target.academic_year !== academicYear) continue;
+        targetByBranch.set(target.branch_id, (targetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue));
+      }
     }
     return selectedBranches
       .filter((branch) => revenueByBranch.has(branch.branch_id))
@@ -785,11 +795,7 @@ export async function getRevenueTarget(
   const targetQuery: Record<string, string> = {
     academic_year: `eq.${academicYear}`,
   };
-  if (month) {
-    const monthNumber = academicMonthNumber(month);
-    if (monthNumber === null) return 0;
-    targetQuery.month_number = `eq.${monthNumber}`;
-  }
+  if (month && academicMonthNumber(month) === null) return 0;
 
   const [branches, targets] = await Promise.all([
     fetchAll<BranchLookup>(
@@ -799,14 +805,16 @@ export async function getRevenueTarget(
       { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
       branchQuery,
     ),
-    fetchAll<RevenueAnnualTargetLookup | RevenueMonthlyTargetLookup>(
-      month ? "t_revenue_monthly_target" : "t_revenue_annual_target",
+    fetchAll<RevenueAnnualTargetLookup | RevenueBranchWeeklyTargetLookup>(
+      month ? "t_branch_weekly_target" : "t_revenue_annual_target",
       month
-        ? "academic_year,branch_id,month_number,target_revenue"
+        ? "academic_year,branch_id,month,target_revenue"
         : "academic_year,branch_id,target_revenue",
       1000,
       { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-      { ...targetQuery, ...branchQuery },
+      month
+        ? { academic_year: `eq.${academicYear}`, ...branchQuery }
+        : { ...targetQuery, ...branchQuery },
     ),
   ]);
   const allowedBranchIds = new Set(
@@ -822,7 +830,7 @@ export async function getRevenueTarget(
     .filter((target) =>
       target.academic_year === academicYear &&
       allowedBranchIds.has(target.branch_id) &&
-      (!month || ("month_number" in target && target.month_number === academicMonthNumber(month))),
+      (!month || ("month" in target && target.month.split(" ")[0] === month)),
     )
     .reduce((sum, target) => sum + parseRevenue(target.target_revenue), 0);
 }
@@ -1049,14 +1057,14 @@ async function getDashboardDataLegacy(
   branchScope: DashboardBranchScope = null,
   academicYearOptions: FilterOption[] = [],
 ): Promise<DashboardData> {
-  const [grades, products, agents, branches, regions, annualTargets, monthlyTargets] = await Promise.all([
+  const [grades, products, agents, branches, regions, annualTargets, branchWeeklyTargets] = await Promise.all([
     fetchAll<GradeLookup>("t_grade", "grade_id,grade"),
     fetchAll<ProductLookup>("t_revenue_products", "product_id,product_code"),
     fetchAll<AgentLookup>("t_agent", "agent_id,agent_name"),
     fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id"),
     fetchAll<RegionLookup>("t_region", "region_id,region_name"),
     fetchAll<RevenueAnnualTargetLookup>("t_revenue_annual_target", "academic_year,branch_id,target_revenue"),
-    fetchAll<RevenueMonthlyTargetLookup>("t_revenue_monthly_target", "academic_year,branch_id,month_number,target_revenue"),
+    fetchAll<RevenueBranchWeeklyTargetLookup>("t_branch_weekly_target", "academic_year,branch_id,month,target_revenue"),
   ]);
 
   const availableBranches = branchScope === null
@@ -1170,11 +1178,13 @@ async function getDashboardDataLegacy(
     );
   }
   const monthlyTargetByMonth = new Map<number, number>();
-  for (const target of monthlyTargets) {
+  for (const target of branchWeeklyTargets) {
     if (target.academic_year !== filters.academicYear || !targetBranchAllowed(target.branch_id)) continue;
+    const monthNumber = academicMonthNumber(target.month.split(" ")[0] ?? "");
+    if (monthNumber === null) continue;
     monthlyTargetByMonth.set(
-      target.month_number,
-      (monthlyTargetByMonth.get(target.month_number) ?? 0) + parseRevenue(target.target_revenue),
+      monthNumber,
+      (monthlyTargetByMonth.get(monthNumber) ?? 0) + parseRevenue(target.target_revenue),
     );
   }
   const targetAnnualRevenue = Array.from(annualTargetByBranch.values()).reduce((sum, value) => sum + value, 0);

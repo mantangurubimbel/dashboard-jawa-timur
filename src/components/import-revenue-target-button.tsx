@@ -4,7 +4,7 @@ import { FileUp, LoaderCircle, X } from "lucide-react";
 import { ChangeEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 
-type TargetKind = "annual" | "monthly" | "weekly" | "branch_weekly";
+type TargetKind = "annual" | "weekly" | "branch_weekly";
 
 type ImportResult = {
   message?: string;
@@ -23,7 +23,7 @@ type ImportResult = {
 export function ImportRevenueTargetButton() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [kind, setKind] = useState<TargetKind>("monthly");
+  const [kind, setKind] = useState<TargetKind>("annual");
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
@@ -102,7 +102,7 @@ export function ImportRevenueTargetButton() {
                     ? "Weekly targets are upserted by agent and Monday week start."
                     : kind === "branch_weekly"
                       ? "Weekly targets are upserted by branch and Monday week start."
-                    : "Targets are upserted by academic year and branch."}
+                    : "Annual targets are upserted by academic year and branch."}
                 </p>
               </div>
               <button
@@ -117,8 +117,8 @@ export function ImportRevenueTargetButton() {
             </div>
 
             <div className="space-y-5 px-5 py-5">
-              <div className="grid grid-cols-2 gap-2 rounded-md bg-slate-100 p-1 sm:grid-cols-4">
-                {(["monthly", "annual", "weekly", "branch_weekly"] as TargetKind[]).map((targetKind) => (
+              <div className="grid grid-cols-1 gap-2 rounded-md bg-slate-100 p-1 sm:grid-cols-3">
+                {(["annual", "weekly", "branch_weekly"] as TargetKind[]).map((targetKind) => (
                   <button
                     type="button"
                     key={targetKind}
@@ -129,10 +129,8 @@ export function ImportRevenueTargetButton() {
                         : "text-slate-500 hover:text-slate-800"
                     }`}
                   >
-                    {targetKind === "monthly"
-                      ? "Monthly Target"
-                      : targetKind === "annual"
-                        ? "Annual Target"
+                    {targetKind === "annual"
+                      ? "Annual Target"
                       : targetKind === "weekly"
                         ? "Weekly Agent Target"
                         : "Weekly Branch Target"}
@@ -149,9 +147,7 @@ export function ImportRevenueTargetButton() {
                   className="mt-2 block w-full rounded-md border border-slate-300 bg-white px-3 py-2 text-sm text-slate-700 file:mr-3 file:rounded file:border-0 file:bg-slate-100 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-700"
                 />
                 <span className="mt-1 block text-xs text-slate-500">
-                  {kind === "monthly"
-                    ? "Header: academic_year, branch_id or branch_name, month, target_revenue"
-                    : kind === "annual"
+                  {kind === "annual"
                       ? "Header: academic_year, branch_id or branch_name, target_revenue"
                       : kind === "branch_weekly"
                         ? "Header: academic_year, month, week_start, branch_id or branch_name, target_revenue"

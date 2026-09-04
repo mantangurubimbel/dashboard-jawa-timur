@@ -85,3 +85,64 @@ export async function toggleDashboardMaintenance(formData: FormData) {
   revalidatePath("/settings");
   revalidatePath("/maintenance");
 }
+
+const targetTables = {
+  annual: "t_revenue_annual_target",
+  monthly: "t_revenue_monthly_target",
+  agent_weekly: "t_agent_weekly_target",
+  branch_weekly: "t_branch_weekly_target",
+} as const;
+
+type TargetKind = keyof typeof targetTables;
+
+function targetTable(formData: FormData) {
+  const kind = String(formData.get("kind") ?? "") as TargetKind;
+  return kind in targetTables ? targetTables[kind] : null;
+}
+
+function targetId(formData: FormData) {
+  const id = String(formData.get("id") ?? "");
+  return /^\d+$/.test(id) ? id : null;
+}
+
+function targetAmount(formData: FormData) {
+  const value = Number(String(formData.get("target_revenue") ?? ""));
+  return Number.isSafeInteger(value) && value >= 0 ? value : null;
+}
+
+export async function updateRevenueTarget(formData: FormData) {
+  await requireAdmin();
+  const table = targetTable(formData);
+  const id = targetId(formData);
+  const targetRevenue = targetAmount(formData);
+  if (!table || !id || targetRevenue === null) throw new Error("Target revenue must be a non-negative integer.");
+
+  const { error } = await createSupabaseServiceRoleClient()
+    .from(table)
+    .update({ target_revenue: targetRevenue })
+    .eq("id", id);
+  if (error) throw new Error(`Failed to update target: ${error.message}`);
+
+  revalidatePath("/settings");
+  revalidatePath("/revenue");
+  revalidatePath("/all-time-performance/agent");
+  revalidatePath("/all-time-performance/branch");
+}
+
+export async function deleteRevenueTarget(formData: FormData) {
+  await requireAdmin();
+  const table = targetTable(formData);
+  const id = targetId(formData);
+  if (!table || !id) throw new Error("Invalid target record.");
+
+  const { error } = await createSupabaseServiceRoleClient()
+    .from(table)
+    .delete()
+    .eq("id", id);
+  if (error) throw new Error(`Failed to delete target: ${error.message}`);
+
+  revalidatePath("/settings");
+  revalidatePath("/revenue");
+  revalidatePath("/all-time-performance/agent");
+  revalidatePath("/all-time-performance/branch");
+}

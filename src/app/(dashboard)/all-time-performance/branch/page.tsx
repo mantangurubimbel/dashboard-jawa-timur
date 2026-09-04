@@ -54,10 +54,10 @@ export default async function AllTimeBranchPerformancePage({
         <>
           <p className="text-sm text-slate-600">Showing performance for <span className="font-semibold text-slate-900">{data.selectedBranch.label}</span>.</p>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected career period" icon={GitBranch} />
-            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Non-bulk buying revenue" icon={GitBranch} />
+            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected period" icon={GitBranch} />
+            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Revenue from all transactions" icon={GitBranch} />
             <MetricCard label="Achievement" value={data.kpis.achievement === null ? "-" : formatPercent(data.kpis.achievement)} detail="Total revenue / total target" icon={GitBranch} />
-            <MetricCard label="Weeks" value={formatNumber(data.kpis.weeks)} detail="Selected career period" icon={GitBranch} />
+            <MetricCard label="Weeks" value={formatNumber(data.kpis.weeks)} detail="Selected period" icon={GitBranch} />
           </section>
           <BranchCareerChart rows={data.rows} />
           <BranchCareerTable rows={data.rows} />
