@@ -8,10 +8,12 @@ import type { BranchCareerMonth } from "@/lib/branch-career-data";
 export function BranchCareerFilters({
   branches,
   months,
+  defaultFromMonth,
   values,
 }: {
   branches: { id: string; label: string }[];
   months: BranchCareerMonth[];
+  defaultFromMonth: string;
   values: { branchId: string; fromMonth: string; toMonth: string };
 }) {
   const router = useRouter();
@@ -41,7 +43,7 @@ export function BranchCareerFilters({
   }
 
   function reset() {
-    setDraft({ branchId: "", fromMonth: "", toMonth: "" });
+    setDraft({ branchId: "", fromMonth: defaultFromMonth, toMonth: "" });
     startTransition(() => router.replace(pathname, { scroll: false }));
   }
 

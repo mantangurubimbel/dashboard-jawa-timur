@@ -135,6 +135,10 @@ Important analytical concepts already present in the codebase:
 - Student growth and renewal / repeat students
 - Branch, region, product and agent dimensions
 
+Revenue calculation rules:
+- Agent performance revenue includes only transactions where `is_bulkbuying = false`.
+- Branch performance revenue includes all transactions, regardless of whether `is_bulkbuying` is `true` or `false`.
+
 Do not silently change the meaning of these metrics. When modifying a calculation, locate and preserve the existing source-of-truth logic.
 
 ### Comparison abbreviations

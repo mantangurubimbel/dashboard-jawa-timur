@@ -8,10 +8,12 @@ import type { AgentCareerMonth } from "@/lib/agent-career-data";
 export function AgentCareerFilters({
   agents,
   months,
+  defaultFromMonth,
   values,
 }: {
   agents: { id: string; label: string }[];
   months: AgentCareerMonth[];
+  defaultFromMonth: string;
   values: { agentId: string; fromMonth: string; toMonth: string };
 }) {
   const router = useRouter();
@@ -41,7 +43,7 @@ export function AgentCareerFilters({
   }
 
   function reset() {
-    setDraft({ agentId: "", fromMonth: "", toMonth: "" });
+    setDraft({ agentId: "", fromMonth: defaultFromMonth, toMonth: "" });
     startTransition(() => router.replace(pathname, { scroll: false }));
   }
 

@@ -29,7 +29,7 @@ export function AgentCareerTable({ rows, branches }: { rows: AgentCareerWeeklyRo
             <tbody className="divide-y divide-slate-100">
               {pageRows.map((row) => (
                 <tr key={row.weekStart} className="hover:bg-slate-50">
-                  <td className="px-3 py-2 text-slate-700">{row.weekStart} – {row.weekEnd}</td>
+                  <td className="px-3 py-2 text-slate-700">{row.weekLabel}</td>
                   <td className="px-3 py-2 text-slate-600">{row.month}</td>
                   <td className="px-3 py-2 text-slate-600">{row.branch}</td>
                   <td className="px-3 py-2 text-right text-slate-700">{row.hasTarget ? formatCurrency(row.target) : "-"}</td>

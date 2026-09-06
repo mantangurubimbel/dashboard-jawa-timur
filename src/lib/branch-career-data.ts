@@ -2,6 +2,7 @@ import { DashboardBranchScope, getDashboardBranchScope } from "@/lib/dashboard-a
 import { supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
 
 type BranchRow = { branch_id: number; branch_name: string };
+type AcademicYearRow = { academic_year: string; is_active: boolean };
 type BranchWeeklyTargetRow = {
   month: string;
   week_start: string;
@@ -18,6 +19,7 @@ type RevenueRow = {
 export type BranchCareerMonth = { id: string; label: string };
 
 export type BranchCareerWeeklyRow = {
+  weekLabel: string;
   weekStart: string;
   weekEnd: string;
   month: string;
@@ -32,6 +34,7 @@ export type BranchCareerWeeklyRow = {
 export type BranchCareerData = {
   branches: { id: string; label: string }[];
   months: BranchCareerMonth[];
+  defaultFromMonth: string | null;
   selectedBranch: { id: string; label: string } | null;
   rows: BranchCareerWeeklyRow[];
   kpis: {
@@ -58,6 +61,13 @@ async function fetchAll<T>(table: string, select: string, query: Record<string, 
   }
 }
 
+async function fetchFirst<T>(table: string, select: string, query: Record<string, string> = {}) {
+  const params = new URLSearchParams({ select, limit: "1", ...query });
+  const response = await supabaseRestFetch(`${table}?${params.toString()}`, fetchInit);
+  if (!response.ok) throw new Error(`${table}: ${await response.text()}`);
+  return ((await response.json()) as T[])[0] ?? null;
+}
+
 function parseRevenue(value: number | string | null) {
   return Number(value ?? 0) || 0;
 }
@@ -76,6 +86,13 @@ function monthKey(value: string) {
   if (!normalized) return Number.POSITIVE_INFINITY;
   const [month, year] = normalized.split(" ");
   return Number(year) * 12 + monthNames.indexOf(month);
+}
+
+function academicStartMonth(academicYear: string | null) {
+  const shortMatch = academicYear?.match(/^(\d{2})\/\d{2}$/);
+  if (shortMatch) return `Jul ${2000 + Number(shortMatch[1])}`;
+  const longMatch = academicYear?.match(/^(\d{4})\/\d{4}$/);
+  return longMatch ? `Jul ${longMatch[1]}` : null;
 }
 
 function formatDate(value: Date) {
@@ -124,9 +141,10 @@ function branchQuery(scope: DashboardBranchScope): Record<string, string> {
   return scope.length ? { branch_id: `in.(${scope.join(",")})` } : { branch_id: "in.(-1)" };
 }
 
-const emptyData = (branches: { id: string; label: string }[], months: BranchCareerMonth[]): BranchCareerData => ({
+const emptyData = (branches: { id: string; label: string }[], months: BranchCareerMonth[], defaultFromMonth: string | null): BranchCareerData => ({
   branches,
   months,
+  defaultFromMonth,
   selectedBranch: null,
   rows: [],
   kpis: { totalTarget: 0, totalRevenue: 0, achievement: null, weeks: 0 },
@@ -143,7 +161,7 @@ export async function getBranchCareerData({
 } = {}, branchScope?: DashboardBranchScope): Promise<BranchCareerData> {
   const scope = branchScope ?? await getDashboardBranchScope();
   const scopedBranchQuery = branchQuery(scope);
-  const [branches, branchWeeklyTargetRows, revenueRows] = await Promise.all([
+  const [branches, branchWeeklyTargetRows, revenueRows, activeAcademicYear] = await Promise.all([
     fetchAll<BranchRow>("t_branch", "branch_id,branch_name", scopedBranchQuery),
     fetchAll<BranchWeeklyTargetRow>(
       "t_branch_weekly_target",
@@ -155,31 +173,46 @@ export async function getBranchCareerData({
       "payment_date,month,branch_id,revenue",
       scopedBranchQuery,
     ),
+    fetchFirst<AcademicYearRow>("t_academic_year", "academic_year,is_active", { is_active: "eq.true", order: "academic_year.desc" }),
   ]);
+  const defaultFromMonth = academicStartMonth(activeAcademicYear?.academic_year ?? null);
 
   const branchOptions = branches
     .filter((row) => row.branch_id !== 100)
     .map((row) => ({ id: String(row.branch_id), label: row.branch_name }))
     .sort((left, right) => left.label.localeCompare(right.label));
+  const selectedBranch = branchId === undefined
+    ? null
+    : branchOptions.find((branch) => Number(branch.id) === branchId) ?? null;
   const allMonthOptions = Array.from(new Set([
     ...branchWeeklyTargetRows.map((row) => canonicalMonth(row.month)),
     ...revenueRows.map((row) => canonicalMonth(row.month)),
   ].filter((month): month is string => Boolean(month))))
+    .sort((left, right) => monthKey(left) - monthKey(right));
+  const selectedMonthOptions = selectedBranch
+    ? Array.from(new Set([
+        ...branchWeeklyTargetRows.filter((row) => row.branch_id === branchId).map((row) => canonicalMonth(row.month)),
+        ...revenueRows.filter((row) => row.branch_id === branchId).map((row) => canonicalMonth(row.month)),
+      ].filter((month): month is string => Boolean(month))))
+      .sort((left, right) => monthKey(left) - monthKey(right))
+    : allMonthOptions;
+  const monthOptions = Array.from(new Set([
+    ...selectedMonthOptions,
+    ...(defaultFromMonth ? [defaultFromMonth] : []),
+  ]))
     .sort((left, right) => monthKey(left) - monthKey(right))
     .map((month) => ({ id: month, label: month }));
-  const monthOptions = allMonthOptions.slice(-15);
   const visibleMonths = new Set(monthOptions.map((month) => month.id));
   const isVisibleMonth = (month: string) => visibleMonths.has(month);
-  const selectedBranch = branchId === undefined
-    ? null
-    : branchOptions.find((branch) => Number(branch.id) === branchId) ?? null;
-  if (!selectedBranch) return emptyData(branchOptions, monthOptions);
+  if (!selectedBranch) return emptyData(branchOptions, monthOptions, defaultFromMonth);
+
+  const selectedFromMonth = fromMonth || defaultFromMonth || undefined;
 
   const targetByWeek = new Map<string, { month: string; target: number }>();
   for (const row of branchWeeklyTargetRows) {
     if (row.branch_id !== branchId) continue;
     const month = canonicalMonth(row.month);
-    if (!month || !isVisibleMonth(month) || !inMonthRange(month, fromMonth, toMonth)) continue;
+    if (!month || !isVisibleMonth(month) || !inMonthRange(month, selectedFromMonth, toMonth)) continue;
     const current = targetByWeek.get(row.week_start);
     targetByWeek.set(row.week_start, {
       month,
@@ -189,6 +222,7 @@ export async function getBranchCareerData({
 
   const revenueByWeek = new Map<string, number>();
   const revenueMonthByWeek = new Map<string, Set<string>>();
+  // Branch performance intentionally includes both bulk-buying and non-bulk-buying transactions.
   for (const row of revenueRows) {
     if (row.branch_id !== branchId) continue;
     const month = canonicalMonth(row.month);
@@ -209,7 +243,7 @@ export async function getBranchCareerData({
     ...targetByWeek.keys(),
     ...Array.from(revenueByWeek.keys()).filter((weekStart) => {
       const month = revenueWeekMonth(weekStart);
-      return month !== null && isVisibleMonth(month) && inMonthRange(month, fromMonth, toMonth);
+      return month !== null && isVisibleMonth(month) && inMonthRange(month, selectedFromMonth, toMonth);
     }),
   ])).sort();
   const rows: BranchCareerWeeklyRow[] = selectedWeeks.map((weekStart) => {
@@ -218,6 +252,7 @@ export async function getBranchCareerData({
     const revenue = revenueByWeek.get(weekStart) ?? 0;
     const lyRevenue = revenueByWeek.get(shiftWeekYear(weekStart, -1)) ?? 0;
     return {
+      weekLabel: "",
       weekStart,
       weekEnd: sundayAfter(weekStart),
       month,
@@ -229,11 +264,18 @@ export async function getBranchCareerData({
       hasTarget: targetByWeek.has(weekStart),
     };
   });
+  const weekNumberByMonth = new Map<string, number>();
+  for (const row of rows) {
+    const nextNumber = (weekNumberByMonth.get(row.month) ?? 0) + 1;
+    weekNumberByMonth.set(row.month, nextNumber);
+    row.weekLabel = `W${nextNumber}`;
+  }
   const totalTarget = rows.reduce((sum, row) => sum + row.target, 0);
   const totalRevenue = rows.reduce((sum, row) => sum + row.revenue, 0);
   return {
     branches: branchOptions,
     months: monthOptions,
+    defaultFromMonth,
     selectedBranch,
     rows,
     kpis: {

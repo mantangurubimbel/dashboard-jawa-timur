@@ -1,16 +1,21 @@
 "use client";
 
 import { Area, AreaChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { useSyncExternalStore } from "react";
 import type { AgentCareerWeeklyRow } from "@/lib/agent-career-data";
 import { formatCurrency, formatPercent } from "@/lib/format";
+
+const subscribeToMount = () => () => {};
+const getClientMounted = () => true;
+const getServerMounted = () => false;
 
 function CareerTooltip({ active, payload }: { active?: boolean; payload?: { payload: AgentCareerWeeklyRow }[] }) {
   const point = payload?.[0]?.payload;
   if (!active || !point) return null;
   return (
     <div className="w-64 rounded-md border border-slate-200 bg-white px-3 py-3 text-xs shadow-lg">
-      <p className="font-semibold text-slate-950">Week of {point.weekStart}</p>
-      <p className="mt-0.5 text-slate-500">{point.month} · {point.branch}</p>
+      <p className="font-semibold text-slate-950">{point.weekLabel} · {point.month}</p>
+      <p className="mt-0.5 text-slate-500">{point.branch}</p>
       <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
         <div className="flex justify-between gap-3"><span className="text-slate-600">Target</span><span className="font-semibold text-slate-800">{formatCurrency(point.target)}</span></div>
         <div className="flex justify-between gap-3"><span className="text-slate-600">Revenue</span><span className="font-semibold text-teal-700">{formatCurrency(point.revenue)}</span></div>
@@ -21,6 +26,9 @@ function CareerTooltip({ active, payload }: { active?: boolean; payload?: { payl
 }
 
 export function AgentCareerChart({ rows }: { rows: AgentCareerWeeklyRow[] }) {
+  const mounted = useSyncExternalStore(subscribeToMount, getClientMounted, getServerMounted);
+  const weekLabels = new Map(rows.map((row) => [row.weekStart, `${row.weekLabel} ${row.month}`]));
+
   return (
     <section className="rounded-md border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mb-4">
@@ -28,7 +36,7 @@ export function AgentCareerChart({ rows }: { rows: AgentCareerWeeklyRow[] }) {
         <p className="text-sm text-slate-500">Non-bulk buying revenue by Monday–Sunday week.</p>
       </div>
       <div className="h-80">
-        {rows.length ? (
+        {rows.length && mounted ? (
           <ResponsiveContainer width="100%" height="100%">
             <AreaChart data={rows} margin={{ left: 8, right: 18, top: 10, bottom: 0 }}>
               <defs>
@@ -42,7 +50,14 @@ export function AgentCareerChart({ rows }: { rows: AgentCareerWeeklyRow[] }) {
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke="var(--chart-grid)" />
-              <XAxis dataKey="weekStart" interval="preserveStartEnd" tick={{ fill: "var(--chart-axis-muted)", fontSize: 10 }} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="weekStart"
+                tickFormatter={(value) => weekLabels.get(String(value)) ?? String(value)}
+                interval="preserveStartEnd"
+                tick={{ fill: "var(--chart-axis-muted)", fontSize: 10 }}
+                tickLine={false}
+                axisLine={false}
+              />
               <YAxis hide />
               <Tooltip content={<CareerTooltip />} />
               <Legend wrapperStyle={{ fontSize: 12 }} />
@@ -50,7 +65,7 @@ export function AgentCareerChart({ rows }: { rows: AgentCareerWeeklyRow[] }) {
               <Area type="monotone" dataKey="revenue" name="Actual Revenue" stroke="var(--chart-primary)" fill="url(#agent-career-revenue-gradient)" strokeWidth={3} dot={false} activeDot={{ r: 5, fill: "var(--chart-primary)" }} />
             </AreaChart>
           </ResponsiveContainer>
-        ) : <div className="flex h-full items-center justify-center text-sm text-slate-500">Select an agent to view weekly performance.</div>}
+        ) : <div className="flex h-full items-center justify-center text-sm text-slate-500">{rows.length ? "Loading chart..." : "Select an agent to view weekly performance."}</div>}
       </div>
     </section>
   );

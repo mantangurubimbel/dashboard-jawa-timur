@@ -1,4 +1,4 @@
-import { UsersRound } from "lucide-react";
+import { BadgePercent, Building, Crosshair, HandCoins, Hash, UsersRound } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { AgentCareerChart } from "@/components/agent-career-chart";
 import { AgentCareerFilters } from "@/components/agent-career-filters";
@@ -45,7 +45,8 @@ export default async function AllTimeAgentPerformancePage({
       <AgentCareerFilters
         agents={data.agents}
         months={data.months}
-        values={{ agentId: agentIdValue, fromMonth: value("fromMonth"), toMonth: value("toMonth") }}
+        defaultFromMonth={data.defaultFromMonth ?? ""}
+        values={{ agentId: agentIdValue, fromMonth: value("fromMonth") || data.defaultFromMonth || "", toMonth: value("toMonth") }}
       />
 
       {!data.selectedAgent ? (
@@ -56,11 +57,11 @@ export default async function AllTimeAgentPerformancePage({
         <>
           <p className="text-sm text-slate-600">Showing career performance for <span className="font-semibold text-slate-900">{data.selectedAgent.label}</span>.</p>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected career period" icon={UsersRound} />
-            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Non-bulk buying revenue" icon={UsersRound} />
-            <MetricCard label="Revenue to Target" value={data.kpis.achievement === null ? "-" : formatPercent(data.kpis.achievement)} detail="Total revenue / total target" icon={UsersRound} />
-            <MetricCard label="New Transactions" value={formatNumber(data.kpis.newTransactions)} detail={`${formatNumber(data.kpis.newTxnBac)} New Txn BAC`} icon={UsersRound} />
-            <MetricCard label="Branches Covered" value={formatNumber(data.kpis.branchesCovered)} detail="Unique assigned branches" icon={UsersRound} />
+            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected career period" icon={Crosshair} />
+            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Non-bulk buying revenue" icon={HandCoins} />
+            <MetricCard label="Achievement" value={data.kpis.achievement === null ? "-" : formatPercent(data.kpis.achievement)} detail="Total revenue / total target" icon={BadgePercent} />
+            <MetricCard label="New Transaction" value={formatNumber(data.kpis.newTransactions)} detail={`${formatNumber(data.kpis.newTxnBac)} New Txn BAC`} icon={Hash} />
+            <MetricCard label="Branches Covered" value={formatNumber(data.kpis.branchesCovered)} detail="Unique assigned branches" icon={Building} />
           </section>
           <AgentCareerChart rows={data.rows} />
           <AgentCareerTable rows={data.rows} branches={data.branches} />

@@ -3,6 +3,7 @@ import { supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
 
 type AgentRow = { agent_id: number; agent_name: string; is_active: boolean };
 type BranchRow = { branch_id: number; branch_name: string };
+type AcademicYearRow = { academic_year: string; is_active: boolean };
 type WeeklyTargetRow = {
   agent_id: number;
   academic_year: string;
@@ -25,6 +26,7 @@ type RevenueRow = {
 export type AgentCareerMonth = { id: string; label: string };
 
 export type AgentCareerWeeklyRow = {
+  weekLabel: string;
   weekStart: string;
   weekEnd: string;
   month: string;
@@ -50,6 +52,7 @@ export type AgentCareerBranchSummary = {
 export type AgentCareerData = {
   agents: { id: string; label: string }[];
   months: AgentCareerMonth[];
+  defaultFromMonth: string | null;
   selectedAgent: { id: string; label: string } | null;
   rows: AgentCareerWeeklyRow[];
   branches: AgentCareerBranchSummary[];
@@ -80,6 +83,13 @@ async function fetchAll<T>(table: string, select: string, query: Record<string, 
   }
 }
 
+async function fetchFirst<T>(table: string, select: string, query: Record<string, string> = {}) {
+  const params = new URLSearchParams({ select, limit: "1", ...query });
+  const response = await supabaseRestFetch(`${table}?${params.toString()}`, fetchInit);
+  if (!response.ok) throw new Error(`${table}: ${await response.text()}`);
+  return ((await response.json()) as T[])[0] ?? null;
+}
+
 function parseRevenue(value: number | string | null) {
   return Number(value ?? 0) || 0;
 }
@@ -89,6 +99,21 @@ function monthKey(value: string) {
   if (!match) return Number.POSITIVE_INFINITY;
   const index = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"].indexOf(match[1]);
   return Number(match[2]) * 12 + Math.max(index, 0);
+}
+
+function academicStartMonth(academicYear: string | null) {
+  const shortMatch = academicYear?.match(/^(\d{2})\/\d{2}$/);
+  if (shortMatch) return `Jul ${2000 + Number(shortMatch[1])}`;
+  const longMatch = academicYear?.match(/^(\d{4})\/\d{4}$/);
+  return longMatch ? `Jul ${longMatch[1]}` : null;
+}
+
+function monthOptionsFor(values: Array<string | null | undefined>, defaultFromMonth: string | null) {
+  const months = new Set(values.filter((value): value is string => Boolean(value)));
+  if (defaultFromMonth) months.add(defaultFromMonth);
+  return Array.from(months)
+    .sort((left, right) => monthKey(left) - monthKey(right))
+    .map((month) => ({ id: month, label: month }));
 }
 
 function formatDate(value: Date) {
@@ -123,9 +148,10 @@ function inMonthRange(month: string, fromMonth?: string, toMonth?: string) {
   return true;
 }
 
-const emptyData = (agents: { id: string; label: string }[], months: AgentCareerMonth[]): AgentCareerData => ({
+const emptyData = (agents: { id: string; label: string }[], months: AgentCareerMonth[], defaultFromMonth: string | null): AgentCareerData => ({
   agents,
   months,
+  defaultFromMonth,
   selectedAgent: null,
   rows: [],
   branches: [],
@@ -143,7 +169,7 @@ export async function getAgentCareerData({
 } = {}, branchScope?: DashboardBranchScope): Promise<AgentCareerData> {
   const scope = branchScope ?? await getDashboardBranchScope();
   const targetQuery = branchQuery(scope, true);
-  const [agents, targetRows, branches] = await Promise.all([
+  const [agents, targetRows, branches, activeAcademicYear] = await Promise.all([
     fetchAll<AgentRow>("t_agent", "agent_id,agent_name,is_active", { is_active: "eq.true" }),
     fetchAll<WeeklyTargetRow>(
       "t_agent_weekly_target",
@@ -151,21 +177,23 @@ export async function getAgentCareerData({
       targetQuery,
     ),
     fetchAll<BranchRow>("t_branch", "branch_id,branch_name", targetQuery),
+    fetchFirst<AcademicYearRow>("t_academic_year", "academic_year,is_active", { is_active: "eq.true", order: "academic_year.desc" }),
   ]);
+  const defaultFromMonth = academicStartMonth(activeAcademicYear?.academic_year ?? null);
   const agentOptions = agents
     .map((row) => ({ id: String(row.agent_id), label: row.agent_name }))
     .sort((left, right) => left.label.localeCompare(right.label));
-  const monthOptions = Array.from(new Set(targetRows.map((row) => row.month)))
-    .sort((left, right) => monthKey(left) - monthKey(right))
-    .map((month) => ({ id: month, label: month }));
   const selectedAgent = agentId === undefined
     ? null
     : agentOptions.find((agent) => Number(agent.id) === agentId) ?? null;
-  if (!selectedAgent) return emptyData(agentOptions, monthOptions);
+  if (!selectedAgent) {
+    return emptyData(agentOptions, monthOptionsFor(targetRows.map((row) => row.month), defaultFromMonth), defaultFromMonth);
+  }
 
   const agentTargets = targetRows.filter((row) => row.agent_id === agentId);
+  const selectedFromMonth = fromMonth || defaultFromMonth || undefined;
   const selectedTargets = agentTargets.filter((row) =>
-    row.agent_id === agentId && inMonthRange(row.month, fromMonth, toMonth),
+    row.agent_id === agentId && inMonthRange(row.month, selectedFromMonth, toMonth),
   );
   const revenueQuery: Record<string, string> = {
     agent_id: `eq.${agentId}`,
@@ -189,6 +217,11 @@ export async function getAgentCareerData({
       newTxnQuery,
     ),
   ]);
+  const monthOptions = monthOptionsFor([
+    ...agentTargets.map((row) => row.month),
+    ...revenueRows.map((row) => row.month),
+    ...newTxnRows.map((row) => row.month),
+  ], defaultFromMonth);
   const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
   const targetByWeek = new Map<string, WeeklyTargetRow>();
   for (const target of agentTargets) {
@@ -201,7 +234,7 @@ export async function getAgentCareerData({
   const isInSelectedPeriod = (row: RevenueRow) => {
     const weekStart = mondayOf(row.payment_date);
     const effectiveMonth = targetByWeek.get(weekStart)?.month ?? row.month;
-    if (!inMonthRange(effectiveMonth, fromMonth, toMonth)) return false;
+    if (!inMonthRange(effectiveMonth, selectedFromMonth, toMonth)) return false;
     return !(
       (fromMonth || toMonth) &&
       selectedTargets.length &&
@@ -232,6 +265,7 @@ export async function getAgentCareerData({
     const branchId = target?.branch_id ?? (actual?.branches.size === 1 ? Array.from(actual.branches)[0] : null);
     const month = target?.month ?? Array.from(actual?.months ?? [""]).sort((left, right) => monthKey(left) - monthKey(right))[0];
     return {
+      weekLabel: "",
       weekStart,
       weekEnd: sundayAfter(weekStart),
       month,
@@ -246,6 +280,12 @@ export async function getAgentCareerData({
       hasTarget: Boolean(target),
     };
   });
+  const weekNumberByMonth = new Map<string, number>();
+  for (const row of rows) {
+    const nextNumber = (weekNumberByMonth.get(row.month) ?? 0) + 1;
+    weekNumberByMonth.set(row.month, nextNumber);
+    row.weekLabel = `W${nextNumber}`;
+  }
   const branchGroups = new Map<number | null, AgentCareerBranchSummary>();
   for (const row of rows) {
     const current = branchGroups.get(row.branchId) ?? {
@@ -270,6 +310,7 @@ export async function getAgentCareerData({
   return {
     agents: agentOptions,
     months: monthOptions,
+    defaultFromMonth,
     selectedAgent,
     rows,
     branches: Array.from(branchGroups.values()).sort((left, right) => left.firstWeek.localeCompare(right.firstWeek)),

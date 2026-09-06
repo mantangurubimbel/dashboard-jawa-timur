@@ -1,4 +1,4 @@
-import { GitBranch } from "lucide-react";
+import { BadgePercent, CalendarRange, Crosshair, GitBranch, HandCoins } from "lucide-react";
 import { MetricCard } from "@/components/metric-card";
 import { BranchCareerChart } from "@/components/branch-career-chart";
 import { BranchCareerFilters } from "@/components/branch-career-filters";
@@ -44,7 +44,8 @@ export default async function AllTimeBranchPerformancePage({
       <BranchCareerFilters
         branches={data.branches}
         months={data.months}
-        values={{ branchId: branchIdValue, fromMonth: value("fromMonth"), toMonth: value("toMonth") }}
+        defaultFromMonth={data.defaultFromMonth ?? ""}
+        values={{ branchId: branchIdValue, fromMonth: value("fromMonth") || data.defaultFromMonth || "", toMonth: value("toMonth") }}
       />
       {!data.selectedBranch ? (
         <section className="rounded-md border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
@@ -54,10 +55,10 @@ export default async function AllTimeBranchPerformancePage({
         <>
           <p className="text-sm text-slate-600">Showing performance for <span className="font-semibold text-slate-900">{data.selectedBranch.label}</span>.</p>
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected period" icon={GitBranch} />
-            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Revenue from all transactions" icon={GitBranch} />
-            <MetricCard label="Achievement" value={data.kpis.achievement === null ? "-" : formatPercent(data.kpis.achievement)} detail="Total revenue / total target" icon={GitBranch} />
-            <MetricCard label="Weeks" value={formatNumber(data.kpis.weeks)} detail="Selected period" icon={GitBranch} />
+            <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected period" icon={Crosshair} />
+            <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Revenue from all transactions" icon={HandCoins} />
+            <MetricCard label="Achievement" value={data.kpis.achievement === null ? "-" : formatPercent(data.kpis.achievement)} detail="Total revenue / total target" icon={BadgePercent} />
+            <MetricCard label="Weeks" value={formatNumber(data.kpis.weeks)} detail="Selected period" icon={CalendarRange} />
           </section>
           <BranchCareerChart rows={data.rows} />
           <BranchCareerTable rows={data.rows} />

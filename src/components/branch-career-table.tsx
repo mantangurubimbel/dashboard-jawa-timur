@@ -7,6 +7,8 @@ function Achievement({ value }: { value: number | null }) {
 }
 
 export function BranchCareerTable({ rows }: { rows: BranchCareerWeeklyRow[] }) {
+  const sortedRows = rows.slice().sort((left, right) => right.weekStart.localeCompare(left.weekStart));
+
   return (
     <section className="overflow-hidden rounded-md border border-slate-200 bg-white shadow-sm">
       <div className="border-b border-slate-200 px-4 py-3">
@@ -23,9 +25,9 @@ export function BranchCareerTable({ rows }: { rows: BranchCareerWeeklyRow[] }) {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
-            {rows.map((row) => (
+            {sortedRows.map((row) => (
               <tr key={row.weekStart} className="hover:bg-slate-50">
-                <td className="px-3 py-2 text-slate-700">{row.weekStart} – {row.weekEnd}</td>
+                <td className="px-3 py-2 text-slate-700">{row.weekLabel}</td>
                 <td className="px-3 py-2 text-slate-600">{row.month}</td>
                 <td className="px-3 py-2 text-right text-slate-700">{row.hasTarget ? formatCurrency(row.target) : "-"}</td>
                 <td className="px-3 py-2 text-right font-semibold text-teal-700">{formatCurrency(row.revenue)}</td>
