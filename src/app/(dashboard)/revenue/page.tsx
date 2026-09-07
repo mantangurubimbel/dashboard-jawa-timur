@@ -18,6 +18,7 @@ import { formatCurrency, formatNumber } from "@/lib/format";
 import {
   getBranchRevenuePerformance,
   getDashboardData,
+  getRegionalRevenueTargets,
   getRevenueTarget,
   getRevenueGrowthSameDate,
 } from "@/lib/local-data";
@@ -61,7 +62,7 @@ export async function RevenuePageContent({
     branchId: numericValue("branchId"),
     month: selectedMonth || undefined,
   };
-  const [data, sameDateGrowth, selectedTarget] = await Promise.all([
+  const [data, sameDateGrowth, selectedTarget, regionalTargets] = await Promise.all([
     getDashboardData(dashboardFilters, branchScope),
     getRevenueGrowthSameDate(dashboardFilters, branchScope),
     selectedMonth
@@ -73,7 +74,21 @@ export async function RevenuePageContent({
           branchScope,
         )
       : Promise.resolve<number | null>(null),
+    getRegionalRevenueTargets(
+      periodContext.academicYear ?? "",
+      numericValue("regionId"),
+      numericValue("branchId"),
+      selectedMonth || undefined,
+      branchScope,
+    ),
   ]);
+  const regionalRevenueSource = data.regionalRevenueSource
+    .map((point) => ({ ...point, target: regionalTargets.get(point.name) ?? 0 }))
+    .sort((left, right) => {
+      const leftAchievement = left.target > 0 ? left.revenue / left.target : -Infinity;
+      const rightAchievement = right.target > 0 ? right.revenue / right.target : -Infinity;
+      return rightAchievement - leftAchievement || right.revenue - left.revenue || left.name.localeCompare(right.name);
+    });
   const branchPerformance = (await getBranchRevenuePerformance(
     data.monthlyRevenueComparison.currentAcademicYear ?? "",
     numericValue("regionId"),
@@ -169,7 +184,7 @@ export async function RevenuePageContent({
               title="Territory Revenue Source"
               description="Retail vs Bulk Buying ratio"
             />
-            <RegionalRevenueSourceChart data={data.regionalRevenueSource} />
+            <RegionalRevenueSourceChart data={regionalRevenueSource} />
           </section>
           <BranchRevenuePerformanceChart
             data={branchPerformance}

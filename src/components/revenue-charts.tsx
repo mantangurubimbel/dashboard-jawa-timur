@@ -533,6 +533,16 @@ function RegionalRevenueTooltip({
         </span>
       </div>
       <div className="mt-3 space-y-1 text-xs">
+        <div className="flex items-center justify-between gap-4 text-slate-700">
+          <span>Target</span>
+          <span className="text-right">{formatCurrency(point.target)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-4 text-slate-700">
+          <span>Achievement</span>
+          <span className="text-right">{point.target > 0 ? formatPercent(point.revenue / point.target) : "-"}</span>
+        </div>
+      </div>
+      <div className="mt-3 space-y-1 text-xs">
         <div className="flex items-center justify-between gap-4 text-teal-700">
           <span>Retail revenue</span>
           <span className="text-right">{formatCurrency(point.nonBulkRevenue)}</span>

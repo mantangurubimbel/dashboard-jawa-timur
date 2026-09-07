@@ -5,7 +5,7 @@ import { useEffect, useSyncExternalStore } from "react";
 
 type Theme = "light" | "dark";
 
-const DEFAULT_THEME: Theme = "dark";
+const DEFAULT_THEME: Theme = "light";
 let clientTheme: Theme = DEFAULT_THEME;
 
 function subscribeToTheme(callback: () => void) {

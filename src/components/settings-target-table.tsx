@@ -71,11 +71,28 @@ function MonthlyTable({ rows }: { rows: SettingsTargetRecord[] }) {
 
 function WeeklyTable({ rows, kind }: { rows: SettingsTargetRecord[]; kind: "branch_weekly" | "agent_weekly" }) {
   const isAgent = kind === "agent_weekly";
+  const weekLabels = useMemo(() => {
+    const weekNumberByMonth = new Map<string, number>();
+    const labels = new Map<string, string>();
+    const uniqueWeeks = Array.from(new Map(
+      rows
+        .filter((row) => row.weekStart)
+        .map((row) => [`${row.month}|${row.weekStart}`, row]),
+    ).values()).sort((left, right) => left.weekStart!.localeCompare(right.weekStart!));
+
+    for (const row of uniqueWeeks) {
+      const nextNumber = (weekNumberByMonth.get(row.month) ?? 0) + 1;
+      weekNumberByMonth.set(row.month, nextNumber);
+      labels.set(`${row.month}|${row.weekStart}`, `W${nextNumber}`);
+    }
+    return labels;
+  }, [rows]);
+
   return (
     <TableShell title={isAgent ? "Agent Weekly Target" : "Branch Weekly Target"} description="Weekly targets for the active academic year. Target revenue can be adjusted per week." empty={!rows.length}>
       <table className="w-full min-w-[960px] border-collapse text-left text-sm">
-        <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500"><tr>{[isAgent ? "Agent" : "Branch", "Academic Year", "Month", "Week Start", "Week End", "Target Revenue", "Updated"].map((label) => <th key={label} className={`px-3 py-2 font-semibold ${label === "Target Revenue" ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
-        <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="hover:bg-slate-50"><td className="max-w-52 truncate px-3 py-2 text-slate-700">{isAgent ? row.agentName : row.branchName}</td><td className="px-3 py-2 text-slate-600">{row.academicYear}</td><td className="px-3 py-2 text-slate-600">{row.month}</td><td className="px-3 py-2 text-slate-600">{row.weekStart}</td><td className="px-3 py-2 text-slate-600">{weekEnd(row.weekStart)}</td><td className="px-3 py-2 text-right"><EditableTarget record={row} /></td><td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt.slice(0, 10)}</td></tr>)}</tbody>
+        <thead className="sticky top-0 z-10 bg-slate-100 text-xs uppercase text-slate-500"><tr>{[isAgent ? "Agent" : "Branch", "Academic Year", "Month", "Week", "Week Start", "Week End", "Target Revenue", "Updated"].map((label) => <th key={label} className={`px-3 py-2 font-semibold ${label === "Target Revenue" ? "text-right" : ""}`}>{label}</th>)}</tr></thead>
+        <tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="hover:bg-slate-50"><td className="max-w-52 truncate px-3 py-2 text-slate-700">{isAgent ? row.agentName : row.branchName}</td><td className="px-3 py-2 text-slate-600">{row.academicYear}</td><td className="px-3 py-2 text-slate-600">{row.month}</td><td className="px-3 py-2 text-slate-600">{row.weekStart ? weekLabels.get(`${row.month}|${row.weekStart}`) ?? "-" : "-"}</td><td className="px-3 py-2 text-slate-600">{row.weekStart}</td><td className="px-3 py-2 text-slate-600">{weekEnd(row.weekStart)}</td><td className="px-3 py-2 text-right"><EditableTarget record={row} /></td><td className="whitespace-nowrap px-3 py-2 text-xs text-slate-500">{row.updatedAt.slice(0, 10)}</td></tr>)}</tbody>
       </table>
     </TableShell>
   );

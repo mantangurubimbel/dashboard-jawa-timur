@@ -27,6 +27,7 @@ export type RevenueSourcePoint = SummaryPoint & {
   bulkRevenue: number;
   nonBulkTransactions: number;
   bulkTransactions: number;
+  target: number;
 };
 
 export type BranchRevenuePerformancePoint = {

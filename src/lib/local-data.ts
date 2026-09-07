@@ -835,6 +835,50 @@ export async function getRevenueTarget(
     .reduce((sum, target) => sum + parseRevenue(target.target_revenue), 0);
 }
 
+export async function getRegionalRevenueTargets(
+  academicYear: string,
+  regionId?: number,
+  branchId?: number,
+  month?: string,
+  branchScope?: DashboardBranchScope,
+) {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  const selectedBranchId = resolveScopedBranchId(scope, branchId);
+  if (scope !== null && !scope.length) return new Map<string, number>();
+
+  const branchQuery: Record<string, string> = scope === null
+    ? {}
+    : { branch_id: `in.(${scope.join(",")})` };
+  const [branches, regions, targets] = await Promise.all([
+    fetchAll<BranchLookup>("t_branch", "branch_id,branch_name,region_id", 1000, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }, branchQuery),
+    fetchAll<RegionLookup>("t_region", "region_id,region_name"),
+    fetchAll<RevenueAnnualTargetLookup | RevenueBranchWeeklyTargetLookup>(
+      month ? "t_branch_weekly_target" : "t_revenue_annual_target",
+      month ? "academic_year,branch_id,month,target_revenue" : "academic_year,branch_id,target_revenue",
+      1000,
+      { next: { revalidate: 30, tags: ["revenue-dashboard", "agent-weekly-targets"] } },
+      { academic_year: `eq.${academicYear}`, ...branchQuery },
+    ),
+  ]);
+  const regionNameById = new Map(regions.map((region) => [region.region_id, region.region_name]));
+  const regionByBranch = new Map(
+    branches
+      .filter((branch) =>
+        (regionId === undefined || branch.region_id === regionId) &&
+        (selectedBranchId === undefined || branch.branch_id === selectedBranchId),
+      )
+      .map((branch) => [branch.branch_id, branch.region_id === null ? "(empty)" : regionNameById.get(branch.region_id) ?? "(empty)"]),
+  );
+  const result = new Map<string, number>();
+  for (const target of targets) {
+    if (target.academic_year !== academicYear || !regionByBranch.has(target.branch_id)) continue;
+    if (month && (!("month" in target) || target.month.split(" ")[0] !== month.split(" ")[0])) continue;
+    const regionName = regionByBranch.get(target.branch_id)!;
+    result.set(regionName, (result.get(regionName) ?? 0) + parseRevenue(target.target_revenue));
+  }
+  return result;
+}
+
 export async function getBranchRevenueSummary(
   academicYear: string,
   branchScope?: DashboardBranchScope,
@@ -1178,6 +1222,7 @@ async function getDashboardDataLegacy(
     );
   }
   const monthlyTargetByMonth = new Map<number, number>();
+  const monthlyTargetByBranch = new Map<number, number>();
   for (const target of branchWeeklyTargets) {
     if (target.academic_year !== filters.academicYear || !targetBranchAllowed(target.branch_id)) continue;
     const monthNumber = academicMonthNumber(target.month.split(" ")[0] ?? "");
@@ -1186,6 +1231,12 @@ async function getDashboardDataLegacy(
       monthNumber,
       (monthlyTargetByMonth.get(monthNumber) ?? 0) + parseRevenue(target.target_revenue),
     );
+    if (!filters.month || target.month.split(" ")[0] === filters.month.split(" ")[0]) {
+      monthlyTargetByBranch.set(
+        target.branch_id,
+        (monthlyTargetByBranch.get(target.branch_id) ?? 0) + parseRevenue(target.target_revenue),
+      );
+    }
   }
   const targetAnnualRevenue = Array.from(annualTargetByBranch.values()).reduce((sum, value) => sum + value, 0);
   const invoices = new Set(rows.map((row) => row.invoice).filter(Boolean));
@@ -1380,7 +1431,12 @@ async function getDashboardDataLegacy(
     regionalRevenueSource: summarizeRevenueSource(
       rows,
       (row) => row.branchId === null ? "(empty)" : branchRegionById.get(row.branchId) ?? "(empty)",
-    ),
+    ).map((point) => ({
+      ...point,
+      target: Array.from((filters.month ? monthlyTargetByBranch : annualTargetByBranch).entries())
+        .filter(([branchId]) => (branchRegionById.get(branchId) ?? "(empty)") === point.name)
+        .reduce((sum, [, target]) => sum + target, 0),
+    })),
     branchRevenue: summarize(
       rows,
       (row) => labelForId(row.branchId, branchById, "Branch"),
