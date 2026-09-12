@@ -5,8 +5,10 @@ import { MonthlyRevenueTable } from "@/components/monthly-revenue-table";
 import { RegionalRevenueSourceChart } from "@/components/revenue-charts";
 import { StudentRankingChart, StudentTrendChart } from "@/components/student-charts";
 import { SummaryTable } from "@/components/summary-table";
+import { LatestRetailTransactions } from "@/components/latest-retail-transactions";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getBranchRevenueSummary, getBulkBuyingGrowth, getDashboardData } from "@/lib/local-data";
+import { getLatestRetailTransactions } from "@/lib/analytics-data";
 import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { getStudentRevenueSummary } from "@/lib/student-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
@@ -30,13 +32,14 @@ export default async function ExecutiveSummaryPage() {
   // These datasets are independent once the academic year is known. Fetch
   // them concurrently so total server time is bounded by the slowest read
   // instead of the sum of every dashboard section.
-  const [fullYearRevenue, bulk, students, topBranchRevenue] = await Promise.all([
+  const [fullYearRevenue, bulk, students, topBranchRevenue, latestRetailTransactions] = await Promise.all([
     getDashboardData({ academicYear }, branchScope),
     revenuePeriod.startDate && revenuePeriod.latestPaymentDate && academicYear !== "-"
       ? getBulkBuyingGrowth(academicYear, revenuePeriod.startDate, revenuePeriod.latestPaymentDate, branchScope)
       : Promise.resolve({ currentRevenue: 0, previousRevenue: 0 }),
     getStudentRevenueSummary(academicYear, branchScope),
     getBranchRevenueSummary(academicYear, branchScope),
+    getLatestRetailTransactions(branchScope),
   ]);
   const aytdRevenueRows = revenue.monthlyRevenueComparison.rows;
   const revenueRows = aytdRevenueRows.map((row, index) => ({
@@ -144,6 +147,7 @@ export default async function ExecutiveSummaryPage() {
           columns="agent"
         />
       </section>
+      <LatestRetailTransactions data={latestRetailTransactions} />
     </div>
   );
 }

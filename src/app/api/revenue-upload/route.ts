@@ -2,6 +2,7 @@ import { transformRevenueCsv } from "@/lib/revenue-transform";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 import { fetchRevenueLookup } from "@/lib/revenue-upload";
 import { requireAdminApi } from "@/lib/admin-auth";
+import { recordAdminAuditLog } from "@/lib/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,7 +10,8 @@ export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
-    if (!(await requireAdminApi())) {
+    const admin = await requireAdminApi();
+    if (!admin) {
       return Response.json({ error: "Only administrators can upload revenue data." }, { status: 403 });
     }
 
@@ -142,6 +144,13 @@ export async function POST(request: Request) {
       }));
     }
 
+    await recordAdminAuditLog({
+      actorUserId: admin.user.id,
+      actorEmail: admin.user.email!,
+      action: "upload_revenue_data",
+      targetType: "t_revenue_txn",
+      metadata: { inserted, deleted, replacedDates: replacementDates.length, failedRows: transformed.invalidRows.length },
+    });
     return Response.json({
       message: transformed.invalidRows.length
         ? "Valid rows were imported. Incomplete rows are ready for completion."

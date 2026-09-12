@@ -2,6 +2,7 @@ import { fetchRevenueLookup } from "@/lib/revenue-upload";
 import { transformRevenueRows, type RevenueRawRow } from "@/lib/revenue-transform";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 import { requireAdminApi } from "@/lib/admin-auth";
+import { recordAdminAuditLog } from "@/lib/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -36,7 +37,8 @@ function toClientIssue(row: IssueRow) {
 
 export async function GET() {
   try {
-    if (!(await requireAdminApi())) {
+    const admin = await requireAdminApi();
+    if (!admin) {
       return Response.json({ error: "Only administrators can view incomplete rows." }, { status: 403 });
     }
 
@@ -60,7 +62,8 @@ export async function GET() {
 export async function POST(request: Request) {
   let issueId = 0;
   try {
-    if (!(await requireAdminApi())) {
+    const admin = await requireAdminApi();
+    if (!admin) {
       return Response.json({ error: "Only administrators can complete revenue rows." }, { status: 403 });
     }
 
@@ -135,6 +138,7 @@ export async function POST(request: Request) {
       .eq("status", "pending");
     if (updateError) throw new Error(`Row uploaded but status update failed: ${updateError.message}`);
 
+    await recordAdminAuditLog({ actorUserId: admin.user.id, actorEmail: admin.user.email!, action: "complete_revenue_upload_issue", targetType: "t_revenue_upload_issue", targetId: String(issueId) });
     return Response.json({ message: "Completed row uploaded successfully.", id: issueId });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to upload completed row.";

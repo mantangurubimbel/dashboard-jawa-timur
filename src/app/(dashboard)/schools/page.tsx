@@ -1,7 +1,7 @@
 import { Building2 } from "lucide-react";
 import { SchoolFilters } from "@/components/school-filters";
 import { SchoolAccountsTable } from "@/components/school-accounts-table";
-import { getSchoolAnalytics } from "@/lib/analytics-data";
+import { getSchoolAnalytics, getSchoolCityOptions } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
 import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
@@ -21,17 +21,21 @@ export default async function SchoolsPage({
   const branchScope = await getDashboardBranchScope();
   const periodContext = await getLatestRevenuePeriodContext(branchScope);
   const academicYear = periodContext.academicYear ?? "";
-  const [rows, bulkRows] = await Promise.all([
+  const selectedCity = value("city");
+  const [rows, bulkRows, cityOptions] = await Promise.all([
     getSchoolAnalytics({
       academicYear,
       level: value("level"),
+      city: selectedCity,
       isBulkBuying: null,
     }, branchScope),
     getSchoolAnalytics({
       academicYear,
       level: value("level"),
+      city: selectedCity,
       isBulkBuying: true,
     }, branchScope),
+    getSchoolCityOptions(),
   ]);
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -48,7 +52,8 @@ export default async function SchoolsPage({
         </p>
       </header>
       <SchoolFilters
-        values={{ level: value("level") }}
+        cities={cityOptions.map((option) => option.city)}
+        values={{ level: value("level"), city: selectedCity }}
       />
       <SchoolAccountsTable rows={rows} />
       <SchoolAccountsTable

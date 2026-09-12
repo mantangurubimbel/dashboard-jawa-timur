@@ -82,6 +82,16 @@ export type RecentTransaction = {
   flags: string[];
 };
 
+export type LatestRetailTransaction = {
+  id: number;
+  paymentDate: string;
+  invoice: string;
+  branch: string;
+  agent: string;
+  product: string;
+  revenue: number;
+};
+
 export type AgentPerformance = {
   agent: string;
   branch: string;

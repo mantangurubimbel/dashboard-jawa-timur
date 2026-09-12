@@ -21,10 +21,11 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useRef, useState } from "react";
 import { AccountMenu } from "@/components/account-menu";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { createClient } from "@/lib/supabase";
 
 const navigation = [
   { href: "/executive-summary", label: "Executive Summary", icon: TrendingUp },
@@ -59,6 +60,7 @@ export function AppShell({
   email?: string | null;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const previousPathname = useRef(pathname);
@@ -83,6 +85,31 @@ export function AppShell({
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [mobileMenuOpen]);
+
+  useEffect(() => {
+    const idleLimitMs = 30 * 60 * 1000;
+    let timer: number | undefined;
+    let signingOut = false;
+    const resetTimer = () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      timer = window.setTimeout(async () => {
+        if (signingOut) return;
+        signingOut = true;
+        try {
+          await createClient().auth.signOut();
+        } finally {
+          router.replace("/login?error=Session%20expired%20after%2030%20minutes%20of%20inactivity.");
+        }
+      }, idleLimitMs);
+    };
+    const events: (keyof WindowEventMap)[] = ["pointerdown", "keydown", "touchstart", "scroll"];
+    events.forEach((event) => window.addEventListener(event, resetTimer, { passive: true }));
+    resetTimer();
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      events.forEach((event) => window.removeEventListener(event, resetTimer));
+    };
+  }, [router]);
 
   const renderNavigation = (isMobile = false) =>
     navigation.map((item) => {

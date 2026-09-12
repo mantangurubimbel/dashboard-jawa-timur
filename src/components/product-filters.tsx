@@ -4,16 +4,20 @@ import { Filter, RotateCcw } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
-type Branch = { id: string; label: string };
+type Region = { id: string; label: string };
+type Branch = { id: string; label: string; regionId: string };
 
 export function ProductFilters({
   branches,
+  regions,
   months,
   values,
 }: {
   branches: Branch[];
+  regions: Region[];
   months: string[];
   values: {
+    regionId: string;
     branchId: string;
     month: string;
   };
@@ -26,6 +30,14 @@ export function ProductFilters({
 
   function update(key: keyof typeof draft, value: string) {
     const next = { ...draft, [key]: value };
+    if (key === "regionId" && value && next.branchId) {
+      const branch = branches.find((item) => item.id === next.branchId);
+      if (branch && branch.regionId !== value) next.branchId = "";
+    }
+    if (key === "branchId" && value) {
+      const branch = branches.find((item) => item.id === value);
+      if (branch) next.regionId = branch.regionId;
+    }
     setDraft(next);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("academicYear");
@@ -42,7 +54,7 @@ export function ProductFilters({
     });
   }
   function reset() {
-    setDraft({ branchId: "", month: "" });
+    setDraft({ regionId: "", branchId: "", month: "" });
     startTransition(() => router.replace(pathname, { scroll: false }));
   }
 
@@ -55,13 +67,22 @@ export function ProductFilters({
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <select
+            value={draft.regionId}
+            onChange={(event) => update("regionId", event.target.value)}
+            aria-label="Region"
+            className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          >
+            <option value="">All regions</option>
+            {regions.map((region) => <option key={region.id} value={region.id}>{region.label}</option>)}
+          </select>
+          <select
             value={draft.branchId}
             onChange={(event) => update("branchId", event.target.value)}
             aria-label="Branch"
             className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
           >
             <option value="">All branches</option>
-            {branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
+            {branches.filter((branch) => !draft.regionId || branch.regionId === draft.regionId).map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
           </select>
           <select
             value={draft.month}

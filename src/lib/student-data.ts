@@ -922,6 +922,8 @@ export async function getStudentRevenueSummary(
   const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
   const levelCounts = new Map<string, Set<string>>();
   const gradeCounts = new Map<string, Set<string>>();
+  const lyLevelCounts = new Map<string, Set<string>>();
+  const l2yLevelCounts = new Map<string, Set<string>>();
   const branchStudents = new Map<number, Set<string>>();
   const branchSerials = new Map<number, Set<string>>();
   const serialCounts = new Map<string, number>();
@@ -953,6 +955,7 @@ export async function getStudentRevenueSummary(
   for (const row of rows) {
     serialCounts.set(row.user_serial, (serialCounts.get(row.user_serial) ?? 0) + 1);
     const grade = gradeCategory(gradeById.get(row.grade_id ?? -1)?.grade ?? "Unmapped");
+    const level = gradeById.get(row.grade_id ?? -1)?.level ?? "Unmapped";
     if (
       row.academic_year === lyAcademicYear &&
       (!lyEndDate || row.payment_date <= lyEndDate)
@@ -960,6 +963,9 @@ export async function getStudentRevenueSummary(
       const nises = lyGradeCounts.get(grade) ?? new Set<string>();
       nises.add(row.nis);
       lyGradeCounts.set(grade, nises);
+      const levelNises = lyLevelCounts.get(level) ?? new Set<string>();
+      levelNises.add(row.nis);
+      lyLevelCounts.set(level, levelNises);
     }
     if (
       row.academic_year === l2yAcademicYear &&
@@ -968,6 +974,9 @@ export async function getStudentRevenueSummary(
       const nises = l2yGradeCounts.get(grade) ?? new Set<string>();
       nises.add(row.nis);
       l2yGradeCounts.set(grade, nises);
+      const levelNises = l2yLevelCounts.get(level) ?? new Set<string>();
+      levelNises.add(row.nis);
+      l2yLevelCounts.set(level, levelNises);
     }
   }
   for (const row of rows) {
@@ -998,6 +1007,8 @@ export async function getStudentRevenueSummary(
       .map((name) => ({
         name,
         students: levelCounts.get(name)?.size ?? 0,
+        lySamePeriod: lyLevelCounts.get(name)?.size ?? 0,
+        l2ySamePeriod: l2yLevelCounts.get(name)?.size ?? 0,
       })),
     gradeStudents: gradeOrder
       .filter((name) => gradeCounts.has(name))

@@ -4,9 +4,10 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-auth";
 import { createSupabaseServiceRoleClient } from "@/lib/supabase-server";
 import { DASHBOARD_EXCLUDED_BRANCH_IDS } from "@/lib/dashboard-access";
+import { recordAdminAuditLog } from "@/lib/admin-audit";
 
 export async function toggleRevenueDashboardAccess(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   const access = String(formData.get("access") ?? "") === "true";
   if (!userId) return;
@@ -17,11 +18,12 @@ export async function toggleRevenueDashboardAccess(formData: FormData) {
     .update({ access_revenue_dashboard: access })
     .eq("id", userId);
   if (error) throw new Error(`Failed to update user access: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "toggle_dashboard_access", targetType: "user", targetId: userId, metadata: { access } });
   revalidatePath("/settings");
 }
 
 export async function assignDashboardBranch(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   const branchIds = Array.from(
     new Set(
@@ -44,11 +46,12 @@ export async function assignDashboardBranch(formData: FormData) {
       { onConflict: "user_id,branch_id" },
     );
   if (error) throw new Error(`Failed to add branch: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "assign_dashboard_branch", targetType: "user", targetId: userId, metadata: { branchIds } });
   revalidatePath("/settings");
 }
 
 export async function removeDashboardBranch(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const userId = String(formData.get("user_id") ?? "");
   const branchIdValue = formData.get("branch_id");
   const branchId = typeof branchIdValue === "string" ? Number(branchIdValue) : NaN;
@@ -64,11 +67,12 @@ export async function removeDashboardBranch(formData: FormData) {
     .eq("user_id", userId)
     .eq("branch_id", branchId);
   if (error) throw new Error(`Failed to remove branch: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "remove_dashboard_branch", targetType: "user", targetId: userId, metadata: { branchId } });
   revalidatePath("/settings");
 }
 
 export async function toggleDashboardMaintenance(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const isActive = String(formData.get("is_active") ?? "") === "true";
   const message = String(formData.get("message") ?? "").trim();
   const { error } = await createSupabaseServiceRoleClient()
@@ -82,6 +86,7 @@ export async function toggleDashboardMaintenance(formData: FormData) {
       { onConflict: "id" },
     );
   if (error) throw new Error(`Failed to update maintenance mode: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "toggle_maintenance", targetType: "maintenance", targetId: "1", metadata: { isActive } });
   revalidatePath("/settings");
   revalidatePath("/maintenance");
 }
@@ -111,7 +116,7 @@ function targetAmount(formData: FormData) {
 }
 
 export async function updateRevenueTarget(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const table = targetTable(formData);
   const id = targetId(formData);
   const targetRevenue = targetAmount(formData);
@@ -122,6 +127,7 @@ export async function updateRevenueTarget(formData: FormData) {
     .update({ target_revenue: targetRevenue })
     .eq("id", id);
   if (error) throw new Error(`Failed to update target: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "update_revenue_target", targetType: table, targetId: id, metadata: { targetRevenue } });
 
   revalidatePath("/settings");
   revalidatePath("/revenue");
@@ -130,7 +136,7 @@ export async function updateRevenueTarget(formData: FormData) {
 }
 
 export async function deleteRevenueTarget(formData: FormData) {
-  await requireAdmin();
+  const { user } = await requireAdmin();
   const table = targetTable(formData);
   const id = targetId(formData);
   if (!table || !id) throw new Error("Invalid target record.");
@@ -140,6 +146,7 @@ export async function deleteRevenueTarget(formData: FormData) {
     .delete()
     .eq("id", id);
   if (error) throw new Error(`Failed to delete target: ${error.message}`);
+  await recordAdminAuditLog({ actorUserId: user.id, actorEmail: user.email!, action: "delete_revenue_target", targetType: table, targetId: id });
 
   revalidatePath("/settings");
   revalidatePath("/revenue");

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "deploy:check": "node scripts/deploy-check.mjs",
+    "deploy:prod": "npm run deploy:check && npm run lint && npx next build --webpack && npx vercel --prod"
   },
   "dependencies": {
     "@supabase/ssr": "^0.8.0",

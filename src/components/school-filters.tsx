@@ -7,9 +7,11 @@ import { useState, useTransition } from "react";
 const levels = ["SD", "SMP", "SMA"];
 
 export function SchoolFilters({
+  cities,
   values,
 }: {
-  values: { level: string };
+  cities: string[];
+  values: { level: string; city: string };
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -17,19 +19,21 @@ export function SchoolFilters({
   const [pending, startTransition] = useTransition();
   const [draft, setDraft] = useState(values);
 
-  function update(value: string) {
-    const next = { ...draft, level: value };
+  function update(key: keyof typeof draft, value: string) {
+    const next = { ...draft, [key]: value };
     setDraft(next);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("academicYear");
-    if (next.level) params.set("level", next.level);
-    else params.delete("level");
+    for (const [name, currentValue] of Object.entries(next)) {
+      if (currentValue) params.set(name, currentValue);
+      else params.delete(name);
+    }
 
     startTransition(() => {
       router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     });
   }
-  function reset() { setDraft({ level: "" }); startTransition(() => router.replace(pathname, { scroll: false })); }
+  function reset() { setDraft({ level: "", city: "" }); startTransition(() => router.replace(pathname, { scroll: false })); }
 
   return (
     <section className="border-y border-slate-200 bg-white">
@@ -40,8 +44,19 @@ export function SchoolFilters({
         </div>
         <div className="flex items-center gap-2">
           <select
+            value={draft.city}
+            onChange={(event) => update("city", event.target.value)}
+            aria-label="City/Regency"
+            className="h-8 w-44 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+          >
+            <option value="">All cities/regencies</option>
+            {cities.map((city) => (
+              <option key={city} value={city}>{city}</option>
+            ))}
+          </select>
+          <select
             value={draft.level}
-            onChange={(event) => update(event.target.value)}
+            onChange={(event) => update("level", event.target.value)}
             aria-label="Level"
             className="h-8 w-28 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
           >

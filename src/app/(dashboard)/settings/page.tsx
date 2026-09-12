@@ -10,6 +10,7 @@ import { FormPendingIndicator, PendingSubmitButton } from "@/components/form-sub
 import { SettingsTabs } from "@/components/settings-tabs";
 import { SettingsTargetTable } from "@/components/settings-target-table";
 import { getSettingsTargetData } from "@/lib/settings-target-data";
+import { AdminActivityLog } from "@/components/admin-activity-log";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,10 @@ async function fetchCount(table: string, query = "") {
 
 export default async function SettingsPage() {
   await requireAdmin();
-  const [users, branches, roles, userRows, positionRows, userBranchRows, branchRows, maintenanceRows, targetData] = await Promise.all([
+  // This timestamp intentionally reflects the current request time so the
+  // report always covers a rolling 72-hour window.
+  const loginCutoff = new Date(new Date().getTime() - 72 * 60 * 60 * 1000).toISOString();
+  const [users, branches, roles, userRows, positionRows, userBranchRows, branchRows, maintenanceRows, targetData, loginRows, auditRows] = await Promise.all([
     fetchCount("t_app_user"),
     fetchCount("t_branch", `&branch_id=not.in.(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})`),
     fetchCount("t_role"),
@@ -32,6 +36,8 @@ export default async function SettingsPage() {
     supabaseRestFetch(`t_branch?select=branch_id,branch_name&branch_id=not.in.(${DASHBOARD_EXCLUDED_BRANCH_IDS.join(",")})&order=branch_name&limit=1000`),
     supabaseRestFetch("t_dashboard_maintenance?select=is_active,message&id=eq.1&limit=1"),
     getSettingsTargetData(),
+    supabaseRestFetch(`t_user_login_log?select=user_id,email,logged_in_at&logged_in_at=gte.${encodeURIComponent(loginCutoff)}&order=logged_in_at.desc&limit=5000`),
+    supabaseRestFetch("t_admin_audit_log?select=id,actor_email,action,target_type,target_id,created_at&order=created_at.desc&limit=200"),
   ]);
   const maintenance = maintenanceRows.ok
     ? ((await maintenanceRows.json()) as { is_active?: boolean; message?: string }[])[0]
@@ -42,6 +48,19 @@ export default async function SettingsPage() {
   const branchesByUser = new Map<string, { id: number; name: string }[]>();
   if (userBranchRows.ok) for (const row of await userBranchRows.json() as { user_id: string; branch_id: number }[]) { const list = branchesByUser.get(row.user_id) ?? []; const name = branchesMap.get(row.branch_id); if (name) list.push({ id: row.branch_id, name }); branchesByUser.set(row.user_id, list); }
   const adminUsers = profiles.map((profile) => ({ id: profile.id, name: profile.name ?? "", email: profile.email ?? "", position: positionsMap.get(profile.position_id ?? -1) ?? "", branches: branchesByUser.get(profile.id) ?? [], accessRevenue: Boolean(profile.access_revenue_dashboard) }));
+  const loginGroups = new Map<string, { userId: string | null; email: string; loginCount: number; lastLogin: string }>();
+  if (loginRows.ok) {
+    for (const row of await loginRows.json() as { user_id?: string | null; email: string; logged_in_at: string }[]) {
+      const key = `${row.user_id ?? ""}:${row.email.toLowerCase()}`;
+      const current = loginGroups.get(key);
+      if (current) current.loginCount += 1;
+      else loginGroups.set(key, { userId: row.user_id ?? null, email: row.email, loginCount: 1, lastLogin: row.logged_in_at });
+    }
+  }
+  const loginActivity = Array.from(loginGroups.values()).sort((a, b) => b.lastLogin.localeCompare(a.lastLogin));
+  const auditEntries = auditRows.ok
+    ? (await auditRows.json() as { id: number; actor_email: string; action: string; target_type: string | null; target_id: string | null; created_at: string }[]).map((row) => ({ id: row.id, actorEmail: row.actor_email, action: row.action, targetType: row.target_type, targetId: row.target_id, createdAt: row.created_at }))
+    : [];
 
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -119,6 +138,7 @@ export default async function SettingsPage() {
             </div>
           </form>
             </div>
+            <AdminActivityLog loginActivity={loginActivity} auditEntries={auditEntries} />
           </div>
         )}
         uploads={(

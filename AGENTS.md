@@ -299,6 +299,30 @@ git diff
 
 Do not overwrite unrelated user changes that are already present in the working tree.
 
+### Deployment identity (mandatory)
+
+This repository deploys to the Vercel project `dashboard-jawa-timur` only.
+The canonical GitHub remote is:
+
+`https://github.com/mantangurubimbel/dashboard-jawa-timur.git`
+
+`data-bayar-jatim` is a separate application and must never be selected for
+this repository. Before any Vercel CLI deployment, verify both the remote and
+the linked project configuration:
+
+```bash
+git remote -v
+cat .vercel/project.json
+npx vercel project inspect dashboard-jawa-timur
+```
+
+The local `.vercel/project.json` must contain `projectName: "dashboard-jawa-timur"`.
+If it points elsewhere, relink with `npx vercel link --project dashboard-jawa-timur`
+before running `npm run deploy:prod`. The `deploy:check` script also verifies
+the Git remote and Vercel project and stops before deployment if either is
+wrong. Do not deploy until the project name is confirmed. Git pushes must
+target `origin main` only after reviewing the diff.
+
 ## 13. CSV / import rules
 
 CSV-related functionality is sensitive because transaction imports can affect downstream analytics.

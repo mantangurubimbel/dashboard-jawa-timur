@@ -1,4 +1,5 @@
 import { supabaseRpcFetch, supabaseRestFetch, SupabaseFetchInit } from "@/lib/supabase-server";
+import type { LatestRetailTransaction } from "@/lib/types";
 import {
   DashboardBranchScope,
   getDashboardBranchScope,
@@ -34,6 +35,11 @@ export type ProductRevenueComparison = {
   l2y: Map<string, number>;
 };
 
+export type SchoolCityOption = {
+  city: string;
+  province: string | null;
+};
+
 type SchoolAnalyticsRow = {
   npsn: string;
   school: string;
@@ -49,6 +55,7 @@ type SchoolAnalyticsRow = {
 };
 
 type AnalyticsTransaction = {
+  id?: number;
   payment_date: string;
   month: string;
   academic_year: string | null;
@@ -65,6 +72,7 @@ type AnalyticsTransaction = {
 type AnalyticsBranch = {
   branch_id: number;
   branch_name: string;
+  region_id: number | null;
 };
 
 type AnalyticsAgent = {
@@ -82,6 +90,7 @@ type AnalyticsSchool = {
   npsn: string;
   name: string;
   city: string | null;
+  province: string | null;
   level: string | null;
 };
 
@@ -153,6 +162,7 @@ async function getAcademicYearBounds(
   academicYear: string,
   branchScope: DashboardBranchScope,
   selectedBranchId?: number,
+  selectedRegionId?: number,
   selectedMonth?: string,
 ): Promise<AcademicYearBounds> {
   const startYear = academicYearStartYear(academicYear);
@@ -160,7 +170,25 @@ async function getAcademicYearBounds(
     return { startDate: null, latestDate: null };
   }
 
-  const branchFilters = branchQuery(branchScope, selectedBranchId);
+  let branchFilters = branchQuery(branchScope, selectedBranchId);
+  if (selectedRegionId !== undefined) {
+    const branches = await fetchAll<AnalyticsBranch>(
+      "t_branch",
+      "branch_id,branch_name,region_id",
+      branchQuery(branchScope),
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    );
+    const regionBranchIds = branches
+      .filter((branch) => branch.region_id === selectedRegionId)
+      .map((branch) => branch.branch_id);
+    if (selectedBranchId !== undefined) {
+      branchFilters = regionBranchIds.includes(selectedBranchId)
+        ? branchIdsQuery([selectedBranchId])
+        : branchIdsQuery([]);
+    } else {
+      branchFilters = branchIdsQuery(regionBranchIds);
+    }
+  }
   const academicMonths = [
     `Jul ${startYear}`,
     `Aug ${startYear}`,
@@ -237,6 +265,10 @@ function branchQuery(scope: DashboardBranchScope, selectedBranchId?: number): Re
   return ids.length ? { branch_id: `in.(${ids.join(",")})` } : { branch_id: "in.(-1)" };
 }
 
+function branchIdsQuery(branchIds: number[]): Record<string, string> {
+  return branchIds.length ? { branch_id: `in.(${branchIds.join(",")})` } : { branch_id: "in.(-1)" };
+}
+
 async function readRpc<T>(functionName: string, body: Record<string, unknown> = {}) {
   const response = await supabaseRpcFetch(functionName, body);
   if (!response.ok) {
@@ -252,6 +284,7 @@ function isMissingRpcError(error: unknown) {
 async function getAgentAnalyticsLocal(
   filters: {
     academicYear?: string;
+    regionId?: number;
     branchId?: number;
     month?: string;
     fromDate?: string;
@@ -261,18 +294,26 @@ async function getAgentAnalyticsLocal(
 ) {
   if (scope !== null && !scope.length) return [];
   const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
-  const [transactions, agents, branches] = await Promise.all([
+  const branches = await fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name,region_id", branchQuery(scope), { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
+  const regionBranches = filters.regionId === undefined
+    ? branches
+    : branches.filter((branch) => branch.region_id === filters.regionId);
+  if (selectedBranchId !== undefined && !regionBranches.some((branch) => branch.branch_id === selectedBranchId)) return [];
+  const allowedBranchIds = selectedBranchId !== undefined
+    ? [selectedBranchId]
+    : filters.regionId === undefined ? null : regionBranches.map((branch) => branch.branch_id);
+  const transactionQuery = allowedBranchIds === null ? branchQuery(scope) : branchIdsQuery(allowedBranchIds);
+  const [transactions, agents] = await Promise.all([
     fetchAll<AnalyticsTransaction>(
       "t_revenue_txn",
       "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
-      branchQuery(scope, selectedBranchId),
+      transactionQuery,
       { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
     ),
     fetchAll<AnalyticsAgent>("t_agent", "agent_id,agent_name", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
-    fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name", branchQuery(scope, selectedBranchId), { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
   ]);
   const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
-  const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
+  const branchById = new Map(regionBranches.map((row) => [row.branch_id, row.branch_name]));
   const grouped = new Map<string, {
     agent: string;
     branch: string;
@@ -321,13 +362,14 @@ async function getAgentAnalyticsLocal(
 
 export async function getAgentAnalytics(filters: {
   academicYear?: string;
+  regionId?: number;
   branchId?: number;
   month?: string;
   fromDate?: string;
   toDate?: string;
 }, branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  if (scope !== null) {
+  if (scope !== null || filters.regionId !== undefined) {
     return getAgentAnalyticsLocal(filters, scope);
   }
   try {
@@ -356,6 +398,7 @@ export async function getAgentAnalytics(filters: {
 export async function getAgentProductRevenue(
   filters: {
     academicYear?: string;
+    regionId?: number;
     branchId?: number;
     month?: string;
     fromDate?: string;
@@ -366,8 +409,14 @@ export async function getAgentProductRevenue(
   const scope = branchScope ?? await getDashboardBranchScope();
   if (scope !== null && !scope.length) return [];
   const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
-  const branchFilters = branchQuery(scope, selectedBranchId);
-  const [transactions, agents, branches, products] = await Promise.all([
+  const branches = await fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name,region_id", branchQuery(scope), { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
+  const regionBranches = filters.regionId === undefined ? branches : branches.filter((branch) => branch.region_id === filters.regionId);
+  if (selectedBranchId !== undefined && !regionBranches.some((branch) => branch.branch_id === selectedBranchId)) return [];
+  const allowedBranchIds = selectedBranchId !== undefined
+    ? [selectedBranchId]
+    : filters.regionId === undefined ? null : regionBranches.map((branch) => branch.branch_id);
+  const branchFilters = allowedBranchIds === null ? branchQuery(scope) : branchIdsQuery(allowedBranchIds);
+  const [transactions, agents, products] = await Promise.all([
     fetchAll<AnalyticsTransaction>(
       "t_revenue_txn",
       "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
@@ -380,12 +429,6 @@ export async function getAgentProductRevenue(
       {},
       { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
     ),
-    fetchAll<AnalyticsBranch>(
-      "t_branch",
-      "branch_id,branch_name",
-      branchFilters,
-      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
-    ),
     fetchAll<AnalyticsProduct>(
       "t_revenue_products",
       "product_id,product_name,product_code",
@@ -394,7 +437,7 @@ export async function getAgentProductRevenue(
     ),
   ]);
   const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
-  const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
+  const branchById = new Map(regionBranches.map((row) => [row.branch_id, row.branch_name]));
   const productById = new Map(products.map((row) => [row.product_id, row]));
   const grouped = new Map<string, Map<string, { product: string; revenue: number }>>();
 
@@ -437,6 +480,7 @@ export async function getAgentProductRevenue(
 async function getProductAnalyticsLocal(
   filters: {
     academicYear?: string;
+    regionId?: number;
     branchId?: number;
     month?: string;
     fromDate?: string;
@@ -446,11 +490,18 @@ async function getProductAnalyticsLocal(
 ) {
   if (scope !== null && !scope.length) return [];
   const selectedBranchId = resolveScopedBranchId(scope, filters.branchId);
+  const branches = await fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name,region_id", branchQuery(scope), { next: { revalidate: 30, tags: ["revenue-dashboard"] } });
+  const regionBranches = filters.regionId === undefined ? branches : branches.filter((branch) => branch.region_id === filters.regionId);
+  if (selectedBranchId !== undefined && !regionBranches.some((branch) => branch.branch_id === selectedBranchId)) return [];
+  const allowedBranchIds = selectedBranchId !== undefined
+    ? [selectedBranchId]
+    : filters.regionId === undefined ? null : regionBranches.map((branch) => branch.branch_id);
+  const transactionQuery = allowedBranchIds === null ? branchQuery(scope) : branchIdsQuery(allowedBranchIds);
   const [transactions, products] = await Promise.all([
     fetchAll<AnalyticsTransaction>(
       "t_revenue_txn",
       "payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
-      branchQuery(scope, selectedBranchId),
+      transactionQuery,
       { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
     ),
     fetchAll<AnalyticsProduct>("t_revenue_products", "product_id,product_name,product_code", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
@@ -496,13 +547,14 @@ async function getProductAnalyticsLocal(
 
 export async function getProductAnalytics(filters: {
   academicYear?: string;
+  regionId?: number;
   branchId?: number;
   month?: string;
   fromDate?: string;
   toDate?: string;
 } = {}, branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  if (scope !== null) {
+  if (scope !== null || filters.regionId !== undefined) {
     return getProductAnalyticsLocal(filters, scope);
   }
   try {
@@ -542,6 +594,7 @@ function productRevenueMap(rows: Awaited<ReturnType<typeof getProductAnalytics>>
 export async function getProductRevenueComparisons(
   filters: {
     academicYear?: string;
+    regionId?: number;
     branchId?: number;
     month?: string;
     fromDate?: string;
@@ -566,7 +619,7 @@ export async function getProductRevenueComparisons(
   const resolvedBounds = await Promise.all(
     yearsToResolve.map(async (year) => [
       year,
-      await getAcademicYearBounds(year, scope, selectedBranchId, filters.month),
+      await getAcademicYearBounds(year, scope, selectedBranchId, filters.regionId, filters.month),
     ] as const),
   );
   resolvedBounds.forEach(([year, value]) => bounds.set(year, value));
@@ -575,6 +628,7 @@ export async function getProductRevenueComparisons(
   const previousFilters = previousYear
     ? {
       academicYear: previousYear,
+      regionId: filters.regionId,
       branchId: selectedBranchId,
       month: filters.month,
       fromDate: filters.fromDate ? shiftDate(filters.fromDate, -1) : bounds.get(previousYear)?.startDate ?? undefined,
@@ -584,6 +638,7 @@ export async function getProductRevenueComparisons(
   const lastTwoFilters = lastTwoYear
     ? {
       academicYear: lastTwoYear,
+      regionId: filters.regionId,
       branchId: selectedBranchId,
       month: filters.month,
       fromDate: filters.fromDate ? shiftDate(filters.fromDate, -2) : bounds.get(lastTwoYear)?.startDate ?? undefined,
@@ -605,11 +660,12 @@ export async function getProductRevenueComparisons(
 export async function getSchoolAnalytics(filters: {
   academicYear?: string;
   level?: string;
+  city?: string;
   isBulkBuying?: boolean | null;
 }, branchScope?: DashboardBranchScope) {
   const scope = branchScope ?? await getDashboardBranchScope();
-  if (scope !== null) {
-    if (!scope.length) return [];
+  if (scope !== null || filters.city) {
+    if (scope !== null && !scope.length) return [];
     const [transactions, schools, branches] = await Promise.all([
       fetchAll<AnalyticsTransaction>(
         "t_revenue_txn",
@@ -617,8 +673,8 @@ export async function getSchoolAnalytics(filters: {
         branchQuery(scope),
         { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
       ),
-      fetchAll<AnalyticsSchool>("t_master_school", "npsn,name,city,level", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
-      fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name", branchQuery(scope), { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+      fetchAll<AnalyticsSchool>("t_master_school", "npsn,name,city,province,level", {}, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+      fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name,region_id", branchQuery(scope), { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
     ]);
     const schoolByNpsn = new Map(schools.map((row) => [row.npsn, row]));
     const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
@@ -636,6 +692,7 @@ export async function getSchoolAnalytics(filters: {
         !dateMatches(row)) continue;
       const school = schoolByNpsn.get(row.npsn);
       if (filters.level && school?.level !== filters.level) continue;
+      if (filters.city && school?.city?.trim() !== filters.city) continue;
       const current = grouped.get(row.npsn) ?? {
         school: school?.name ?? "School not found",
         city: school?.city ?? "-",
@@ -689,5 +746,84 @@ export async function getSchoolAnalytics(filters: {
       revenue: Number(branch.revenue),
       transactions: Number(branch.transactions),
     })),
+  }));
+}
+
+/** Return distinct school cities, with East Java options listed first. */
+export async function getSchoolCityOptions(): Promise<SchoolCityOption[]> {
+  const rows = await fetchAll<Pick<AnalyticsSchool, "city" | "province">>(
+    "t_master_school",
+    "city,province",
+    {},
+    { next: { revalidate: 300, tags: ["revenue-dashboard"] } },
+  );
+  const byCity = new Map<string, SchoolCityOption>();
+  for (const row of rows) {
+    const city = row.city?.trim();
+    if (!city) continue;
+    const current = byCity.get(city);
+    if (!current || (row.province === "Jawa Timur" && current.province !== "Jawa Timur")) {
+      byCity.set(city, { city, province: row.province });
+    }
+  }
+  return Array.from(byCity.values()).sort((left, right) => {
+    const leftPriority = left.province === "Jawa Timur" ? 0 : 1;
+    const rightPriority = right.province === "Jawa Timur" ? 0 : 1;
+    return leftPriority - rightPriority || left.city.localeCompare(right.city);
+  });
+}
+
+export async function getLatestRetailTransactions(
+  branchScope?: DashboardBranchScope,
+  search = "",
+): Promise<LatestRetailTransaction[]> {
+  const scope = branchScope ?? await getDashboardBranchScope();
+  if (scope !== null && !scope.length) return [];
+  const branchQueryParams: Record<string, string> = scope === null ? {} : { branch_id: `in.(${scope.join(",")})` };
+  const transactionParams = new URLSearchParams({
+    select: "id,payment_date,month,academic_year,agent_id,branch_id,product_id,npsn,invoice,revenue,is_newtxn,is_bulkbuying",
+    is_bulkbuying: "eq.false",
+    order: "payment_date.desc,id.desc",
+    limit: "100",
+    ...branchQueryParams,
+  });
+  const normalizedSearch = search.trim();
+  if (normalizedSearch) {
+    const agentSearchParams = new URLSearchParams({
+      select: "agent_id",
+      agent_name: `ilike.*${normalizedSearch.replace(/[*,()]/g, " ")}*`,
+      limit: "1000",
+    });
+    const agentSearchResponse = await supabaseRestFetch(`t_agent?${agentSearchParams.toString()}`, {
+      next: { revalidate: 30, tags: ["revenue-dashboard"] },
+    });
+    if (!agentSearchResponse.ok) throw new Error(`t_agent: ${await agentSearchResponse.text()}`);
+    const matchingAgentIds = ((await agentSearchResponse.json()) as { agent_id: number }[])
+      .map((row) => Number(row.agent_id))
+      .filter((id) => Number.isSafeInteger(id));
+    const escaped = normalizedSearch.replace(/[,*()]/g, " ");
+    const orFilters = [`invoice.ilike.*${escaped}*`];
+    if (matchingAgentIds.length) orFilters.push(`agent_id.in.(${matchingAgentIds.join(",")})`);
+    transactionParams.set("or", `(${orFilters.join(",")})`);
+  }
+  const [transactionsResponse, branches, agents, products] = await Promise.all([
+    supabaseRestFetch(`t_revenue_txn?${transactionParams.toString()}`, { next: { revalidate: 30, tags: ["revenue-dashboard"] } }),
+    fetchAll<AnalyticsBranch>("t_branch", "branch_id,branch_name,region_id", branchQueryParams, { next: { revalidate: 300, tags: ["revenue-dashboard"] } }),
+    fetchAll<AnalyticsAgent>("t_agent", "agent_id,agent_name", {}, { next: { revalidate: 300, tags: ["revenue-dashboard"] } }),
+    fetchAll<AnalyticsProduct>("t_revenue_products", "product_id,product_name,product_code", {}, { next: { revalidate: 300, tags: ["revenue-dashboard"] } }),
+  ]);
+  if (!transactionsResponse.ok) throw new Error(`t_revenue_txn: ${await transactionsResponse.text()}`);
+  const transactions = (await transactionsResponse.json()) as AnalyticsTransaction[];
+  const branchById = new Map(branches.map((row) => [row.branch_id, row.branch_name]));
+  const agentById = new Map(agents.map((row) => [row.agent_id, row.agent_name]));
+  const productById = new Map(products.map((row) => [row.product_id, row.product_name || row.product_code]));
+  return transactions.map((row, index) => ({
+    id: row.id ?? index,
+    paymentDate: row.payment_date,
+    invoice: row.invoice,
+    branch: row.branch_id === null ? "(empty)" : branchById.get(row.branch_id) ?? `Branch #${row.branch_id}`,
+    agent: row.agent_id === null ? "(empty)" : agentById.get(row.agent_id) ?? `Agent #${row.agent_id}`,
+    product: row.product_id === null ? "(empty)" : productById.get(row.product_id) ?? `Product #${row.product_id}`,
+    revenue: parseRevenue(row.revenue),
   }));
 }

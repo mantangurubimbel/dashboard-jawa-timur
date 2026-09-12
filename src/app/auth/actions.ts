@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createSupabaseAuthServerClient } from "@/lib/supabase-auth";
+import { recordUserLogin } from "@/lib/admin-audit";
 
 export async function signIn(formData: FormData) {
   const email = String(formData.get("email") ?? "").trim().toLowerCase();
@@ -13,12 +14,13 @@ export async function signIn(formData: FormData) {
   }
 
   const supabase = await createSupabaseAuthServerClient();
-  const { error } = await supabase.auth.signInWithPassword({ email, password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
 
   if (error) {
     redirect("/login?error=Invalid%20email%20or%20password.");
   }
 
+  await recordUserLogin({ userId: data.user?.id, email });
   redirect("/executive-summary");
 }
 

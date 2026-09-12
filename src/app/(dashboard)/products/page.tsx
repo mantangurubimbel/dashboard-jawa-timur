@@ -20,9 +20,15 @@ export default async function ProductsPage({
     const raw = params[key];
     return Array.isArray(raw) ? raw[0] ?? "" : raw ?? "";
   };
+  const numericValue = (key: string) => {
+    const raw = value(key);
+    if (!raw) return undefined;
+    const parsed = Number(raw);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
   const branchScope = await getDashboardBranchScope();
   const branchParams = new URLSearchParams({
-    select: "branch_id,branch_name",
+    select: "branch_id,branch_name,region_id",
     region_id: "not.is.null",
     order: "branch_name",
     limit: "1000",
@@ -30,13 +36,25 @@ export default async function ProductsPage({
   if (branchScope !== null) {
     branchParams.set("branch_id", branchScope.length ? `in.(${branchScope.join(",")})` : "in.(-1)");
   }
-  const [periodContext, branchesResponse] = await Promise.all([
+  const regionParams = new URLSearchParams({
+    select: "region_id,region_name",
+    order: "region_name",
+    limit: "1000",
+  });
+  const [periodContext, branchesResponse, regionsResponse] = await Promise.all([
     getLatestRevenuePeriodContext(branchScope),
     supabaseRestFetch(`t_branch?${branchParams.toString()}`),
+    supabaseRestFetch(`t_region?${regionParams.toString()}`),
   ]);
   const branches = branchesResponse.ok
-    ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string }[])
-        .map((row) => ({ id: String(row.branch_id), label: row.branch_name }))
+    ? ((await branchesResponse.json()) as { branch_id: number; branch_name: string; region_id: number | null }[])
+        .map((row) => ({ id: String(row.branch_id), label: row.branch_name, regionId: String(row.region_id ?? "") }))
+    : [];
+  const availableRegionIds = new Set(branches.map((branch) => branch.regionId).filter(Boolean));
+  const regions = regionsResponse.ok
+    ? ((await regionsResponse.json()) as { region_id: number; region_name: string }[])
+      .filter((row) => availableRegionIds.has(String(row.region_id)))
+      .map((row) => ({ id: String(row.region_id), label: row.region_name }))
     : [];
   const academicYear = periodContext.academicYear ?? "";
   const requestedMonth = value("month");
@@ -45,7 +63,8 @@ export default async function ProductsPage({
     : "";
   const productFilters = {
     academicYear,
-    branchId: value("branchId") ? Number(value("branchId")) : undefined,
+    regionId: numericValue("regionId"),
+    branchId: numericValue("branchId"),
     month: month || undefined,
   };
   const [rows, productComparisons] = await Promise.all([
@@ -172,8 +191,10 @@ export default async function ProductsPage({
       </header>
       <ProductFilters
         branches={branches}
+        regions={regions}
         months={periodContext.months.map((option) => option.id)}
         values={{
+          regionId: value("regionId"),
           branchId: value("branchId"),
           month,
         }}

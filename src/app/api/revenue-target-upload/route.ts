@@ -10,6 +10,7 @@ import {
   transformRevenueTargetCsv,
 } from "@/lib/revenue-target-import";
 import { requireAdminApi } from "@/lib/admin-auth";
+import { recordAdminAuditLog } from "@/lib/admin-audit";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -24,7 +25,8 @@ async function fetchLookup<T>(table: string, select: string) {
 
 export async function POST(request: Request) {
   try {
-    if (!(await requireAdminApi())) {
+    const admin = await requireAdminApi();
+    if (!admin) {
       return Response.json({ error: "Only administrators can import revenue targets." }, { status: 403 });
     }
 
@@ -92,6 +94,7 @@ export async function POST(request: Request) {
         .upsert(payload, { onConflict: "agent_id,week_start", ignoreDuplicates: false })
         .select("id");
       if (error) throw new Error(`Target import failed: ${error.message}`);
+      await recordAdminAuditLog({ actorUserId: admin.user.id, actorEmail: admin.user.email!, action: "upload_revenue_target", targetType: kind, metadata: { imported: importedRows?.length ?? payload.length } });
       return Response.json({
         message: "Weekly agent target import completed successfully.",
         imported: importedRows?.length ?? payload.length,
@@ -112,6 +115,7 @@ export async function POST(request: Request) {
         .upsert(payload, { onConflict: "branch_id,week_start", ignoreDuplicates: false })
         .select("id");
       if (error) throw new Error(`Target import failed: ${error.message}`);
+      await recordAdminAuditLog({ actorUserId: admin.user.id, actorEmail: admin.user.email!, action: "upload_revenue_target", targetType: kind, metadata: { imported: importedRows?.length ?? payload.length } });
       return Response.json({
         message: "Weekly branch target import completed successfully.",
         imported: importedRows?.length ?? payload.length,
@@ -144,6 +148,7 @@ export async function POST(request: Request) {
       throw new Error(`Target import failed: ${error.message}`);
     }
 
+    await recordAdminAuditLog({ actorUserId: admin.user.id, actorEmail: admin.user.email!, action: "upload_revenue_target", targetType: kind, metadata: { imported: importedRows?.length ?? transformed.rows.length } });
     return Response.json({
       message: "Target import completed successfully.",
       imported: importedRows?.length ?? transformed.rows.length,
