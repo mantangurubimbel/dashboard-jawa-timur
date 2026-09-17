@@ -3,6 +3,7 @@ import { MetricCard } from "@/components/metric-card";
 import { AgentCareerChart } from "@/components/agent-career-chart";
 import { AgentCareerFilters } from "@/components/agent-career-filters";
 import { AgentCareerTable } from "@/components/agent-career-table";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { getAgentCareerData } from "@/lib/agent-career-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
@@ -56,6 +57,7 @@ export default async function AllTimeAgentPerformancePage({
       ) : (
         <>
           <p className="text-sm text-slate-600">Showing career performance for <span className="font-semibold text-slate-900">{data.selectedAgent.label}</span>.</p>
+          <LatestTransactionDate date={data.latestTransactionDate} label="Latest transaction date for current selection" />
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected career period" icon={Crosshair} />
             <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Non-bulk buying revenue" icon={HandCoins} />

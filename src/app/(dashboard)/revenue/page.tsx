@@ -14,6 +14,7 @@ import {
 } from "@/components/revenue-charts";
 import { MonthlyRevenueTable } from "@/components/monthly-revenue-table";
 import { UploadRawDataButton } from "@/components/upload-raw-data-button";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import {
   getBranchRevenuePerformance,
@@ -23,7 +24,7 @@ import {
   getRevenueGrowthSameDate,
 } from "@/lib/local-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
-import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext, getLatestTransactionDate } from "@/lib/revenue-filters";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -62,7 +63,7 @@ export async function RevenuePageContent({
     branchId: numericValue("branchId"),
     month: selectedMonth || undefined,
   };
-  const [data, sameDateGrowth, selectedTarget, regionalTargets] = await Promise.all([
+  const [data, sameDateGrowth, selectedTarget, regionalTargets, latestTransactionDate] = await Promise.all([
     getDashboardData(dashboardFilters, branchScope),
     getRevenueGrowthSameDate(dashboardFilters, branchScope),
     selectedMonth
@@ -81,6 +82,11 @@ export async function RevenuePageContent({
       selectedMonth || undefined,
       branchScope,
     ),
+    getLatestTransactionDate(branchScope, {
+      regionId: numericValue("regionId"),
+      branchId: numericValue("branchId"),
+      month: selectedMonth || undefined,
+    }),
   ]);
   const regionalRevenueSource = data.regionalRevenueSource
     .map((point) => ({ ...point, target: regionalTargets.get(point.name) ?? 0 }))
@@ -199,6 +205,7 @@ export async function RevenuePageContent({
         targetAnnualRevenue={kpis.targetAnnualRevenue}
         targetRevenueOverride={selectedMonth ? selectedMonthTarget : undefined}
       />
+      <LatestTransactionDate date={latestTransactionDate} label="Latest transaction date for current selection" />
     </div>
   );
 }

@@ -19,6 +19,8 @@ import {
   ChevronDown,
   Menu,
   X,
+  Link2,
+  MessageSquareText,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -46,7 +48,10 @@ const navigation = [
     { href: "/all-time-performance/branch", label: "Branch", icon: GitBranch },
     { href: "/all-time-performance/agent", label: "Agent", icon: UsersRound },
   ] },
-  { href: "https://data-bayar-jatim.vercel.app", label: "Data Bayar", icon: Wallet, external: true },
+  { label: "Other Links", icon: Link2, children: [
+    { href: "https://data-bayar-jatim.vercel.app", label: "Data Bayar", icon: Wallet, external: true },
+    { href: "https://agentanalysisweb.vercel.app", label: "Bedah chat Agent", icon: MessageSquareText, external: true },
+  ] },
   { href: "/settings", label: "Settings", icon: Settings2 },
 ];
 
@@ -65,7 +70,7 @@ export function AppShell({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const previousPathname = useRef(pathname);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({
-    "Revenue Overview": true, "Students Overview": true, "School Partner": true, "All Time Performance": true,
+    "Revenue Overview": true, "Students Overview": true, "School Partner": true, "All Time Performance": true, "Other Links": true,
   });
 
   useEffect(() => {
@@ -144,10 +149,13 @@ export function AppShell({
                 {item.children.map((child) => {
                   const ChildIcon = child.icon;
                   const active = pathname === child.href;
+                  const isExternal = "external" in child && child.external === true;
                   return (
                     <Link
                       key={child.href}
                       href={child.href}
+                      target={isExternal ? "_blank" : undefined}
+                      rel={isExternal ? "noreferrer" : undefined}
                       onClick={() => {
                         if (isMobile) setMobileMenuOpen(false);
                       }}

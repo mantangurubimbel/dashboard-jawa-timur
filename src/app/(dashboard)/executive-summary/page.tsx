@@ -6,6 +6,7 @@ import { RegionalRevenueSourceChart } from "@/components/revenue-charts";
 import { StudentRankingChart, StudentTrendChart } from "@/components/student-charts";
 import { SummaryTable } from "@/components/summary-table";
 import { LatestRetailTransactions } from "@/components/latest-retail-transactions";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { formatCurrency, formatNumber } from "@/lib/format";
 import { getBranchRevenueSummary, getBulkBuyingGrowth, getDashboardData } from "@/lib/local-data";
 import { getLatestRetailTransactions } from "@/lib/analytics-data";
@@ -71,6 +72,7 @@ export default async function ExecutiveSummaryPage() {
         <p className="mt-2 text-sm text-slate-600">
           Revenue and student growth summary for academic year {academicYear}.
         </p>
+        <LatestTransactionDate date={revenuePeriod.latestPaymentDate} />
       </header>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">

@@ -54,6 +54,7 @@ export type AgentCareerData = {
   months: AgentCareerMonth[];
   defaultFromMonth: string | null;
   selectedAgent: { id: string; label: string } | null;
+  latestTransactionDate: string | null;
   rows: AgentCareerWeeklyRow[];
   branches: AgentCareerBranchSummary[];
   kpis: {
@@ -153,6 +154,7 @@ const emptyData = (agents: { id: string; label: string }[], months: AgentCareerM
   months,
   defaultFromMonth,
   selectedAgent: null,
+  latestTransactionDate: null,
   rows: [],
   branches: [],
   kpis: { totalTarget: 0, totalRevenue: 0, achievement: null, weeks: 0, branchesCovered: 0, newTransactions: 0, newTxnBac: 0 },
@@ -230,6 +232,7 @@ export async function getAgentCareerData({
   const selectedWeekStarts = new Set(selectedTargets.map((target) => target.week_start));
   let newTransactions = 0;
   let newTxnBac = 0;
+  let latestTransactionDate: string | null = null;
   const revenueByWeek = new Map<string, { revenue: number; months: Set<string>; branches: Set<number> }>();
   const isInSelectedPeriod = (row: RevenueRow) => {
     const weekStart = mondayOf(row.payment_date);
@@ -245,6 +248,9 @@ export async function getAgentCareerData({
   for (const row of revenueRows) {
     const weekStart = mondayOf(row.payment_date);
     if (!isInSelectedPeriod(row)) continue;
+    if (!latestTransactionDate || row.payment_date > latestTransactionDate) {
+      latestTransactionDate = row.payment_date;
+    }
     const current = revenueByWeek.get(weekStart) ?? { revenue: 0, months: new Set<string>(), branches: new Set<number>() };
     current.revenue += parseRevenue(row.revenue);
     current.months.add(row.month);
@@ -312,6 +318,7 @@ export async function getAgentCareerData({
     months: monthOptions,
     defaultFromMonth,
     selectedAgent,
+    latestTransactionDate,
     rows,
     branches: Array.from(branchGroups.values()).sort((left, right) => left.firstWeek.localeCompare(right.firstWeek)),
     kpis: {

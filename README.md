@@ -23,6 +23,9 @@ npm run deploy:prod
 then runs lint and a production build before invoking Vercel. It stops without
 deploying if either identity check fails.
 
+When the user says `deploy`, run `npm run deploy:prod`. This does not commit or
+push changes to GitHub.
+
 For Git-based deployment, push only after reviewing the intended diff:
 
 ```bash

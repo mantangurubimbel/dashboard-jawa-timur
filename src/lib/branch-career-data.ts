@@ -36,6 +36,7 @@ export type BranchCareerData = {
   months: BranchCareerMonth[];
   defaultFromMonth: string | null;
   selectedBranch: { id: string; label: string } | null;
+  latestTransactionDate: string | null;
   rows: BranchCareerWeeklyRow[];
   kpis: {
     totalTarget: number;
@@ -146,6 +147,7 @@ const emptyData = (branches: { id: string; label: string }[], months: BranchCare
   months,
   defaultFromMonth,
   selectedBranch: null,
+  latestTransactionDate: null,
   rows: [],
   kpis: { totalTarget: 0, totalRevenue: 0, achievement: null, weeks: 0 },
 });
@@ -222,6 +224,7 @@ export async function getBranchCareerData({
 
   const revenueByWeek = new Map<string, number>();
   const revenueMonthByWeek = new Map<string, Set<string>>();
+  let latestTransactionDate: string | null = null;
   // Branch performance intentionally includes both bulk-buying and non-bulk-buying transactions.
   for (const row of revenueRows) {
     if (row.branch_id !== branchId) continue;
@@ -239,6 +242,14 @@ export async function getBranchCareerData({
     if (targetMonth) return targetMonth;
     return Array.from(revenueMonthByWeek.get(weekStart) ?? []).sort((left, right) => monthKey(left) - monthKey(right))[0] ?? null;
   };
+  for (const row of revenueRows) {
+    if (row.branch_id !== branchId) continue;
+    const effectiveMonth = revenueWeekMonth(mondayOf(row.payment_date));
+    if (!effectiveMonth || !isVisibleMonth(effectiveMonth) || !inMonthRange(effectiveMonth, selectedFromMonth, toMonth)) continue;
+    if (!latestTransactionDate || row.payment_date > latestTransactionDate) {
+      latestTransactionDate = row.payment_date;
+    }
+  }
   const selectedWeeks = Array.from(new Set([
     ...targetByWeek.keys(),
     ...Array.from(revenueByWeek.keys()).filter((weekStart) => {
@@ -277,6 +288,7 @@ export async function getBranchCareerData({
     months: monthOptions,
     defaultFromMonth,
     selectedBranch,
+    latestTransactionDate,
     rows,
     kpis: {
       totalTarget,

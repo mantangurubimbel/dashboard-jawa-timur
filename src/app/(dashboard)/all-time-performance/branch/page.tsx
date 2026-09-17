@@ -3,6 +3,7 @@ import { MetricCard } from "@/components/metric-card";
 import { BranchCareerChart } from "@/components/branch-career-chart";
 import { BranchCareerFilters } from "@/components/branch-career-filters";
 import { BranchCareerTable } from "@/components/branch-career-table";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { getBranchCareerData } from "@/lib/branch-career-data";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 import { formatCurrency, formatNumber, formatPercent } from "@/lib/format";
@@ -54,6 +55,7 @@ export default async function AllTimeBranchPerformancePage({
       ) : (
         <>
           <p className="text-sm text-slate-600">Showing performance for <span className="font-semibold text-slate-900">{data.selectedBranch.label}</span>.</p>
+          <LatestTransactionDate date={data.latestTransactionDate} label="Latest transaction date for current selection" />
           <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard label="Total Target" value={formatCurrency(data.kpis.totalTarget)} detail="Selected period" icon={Crosshair} />
             <MetricCard label="Total Revenue" value={formatCurrency(data.kpis.totalRevenue)} detail="Revenue from all transactions" icon={HandCoins} />

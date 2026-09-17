@@ -2,9 +2,10 @@ import { ArrowDown, ArrowUp, BarChart3 } from "lucide-react";
 import { RevenueCell } from "@/components/analytics-table";
 import { ProductFilters } from "@/components/product-filters";
 import { ProductRevenueChart } from "@/components/revenue-charts";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { getProductAnalytics, getProductRevenueComparisons } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
-import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext, getLatestTransactionDate } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
@@ -67,9 +68,14 @@ export default async function ProductsPage({
     branchId: numericValue("branchId"),
     month: month || undefined,
   };
-  const [rows, productComparisons] = await Promise.all([
+  const [rows, productComparisons, latestTransactionDate] = await Promise.all([
     getProductAnalytics(productFilters, branchScope),
     getProductRevenueComparisons(productFilters, branchScope),
+    getLatestTransactionDate(branchScope, {
+      regionId: numericValue("regionId"),
+      branchId: numericValue("branchId"),
+      month: month || undefined,
+    }),
   ]);
   const nonBulkRows = rows.filter((row) => !row.bulkBuying);
   const bulkRows = rows.filter((row) => row.bulkBuying);
@@ -199,6 +205,7 @@ export default async function ProductsPage({
           month,
         }}
       />
+      <LatestTransactionDate date={latestTransactionDate} label="Latest transaction date for current selection" />
       <ProductRevenueChart
         title="Non Bulk Buying Revenue by Product"
         description="Revenue chart from the Non Bulk Buying table based on the active filters."

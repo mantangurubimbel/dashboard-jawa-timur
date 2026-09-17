@@ -253,3 +253,109 @@ export function getLatestRevenuePeriodContext(
 ) {
   return getLatestRevenuePeriodContextCached(branchScopeKey(branchScope));
 }
+
+export type LatestTransactionFilters = {
+  regionId?: number;
+  branchId?: number;
+  month?: string;
+};
+
+function latestTransactionFiltersKey(
+  branchScope: DashboardBranchScope,
+  filters: LatestTransactionFilters,
+) {
+  return JSON.stringify({
+    scope: branchScopeKey(branchScope),
+    regionId: filters.regionId ?? null,
+    branchId: filters.branchId ?? null,
+    month: filters.month ?? null,
+  });
+}
+
+const getLatestTransactionDateCached = cache(
+  async (key: string): Promise<string | null> => {
+    const parsed = JSON.parse(key) as {
+      scope: string;
+      regionId: number | null;
+      branchId: number | null;
+      month: string | null;
+    };
+    const scope: DashboardBranchScope =
+      parsed.scope === "*"
+        ? null
+        : parsed.scope
+          ? parsed.scope.split(",").map(Number)
+          : [];
+
+    const branchParams = new URLSearchParams({
+      select: "branch_id",
+      limit: "1000",
+    });
+    if (parsed.regionId !== null) {
+      branchParams.set("region_id", `eq.${parsed.regionId}`);
+    }
+    if (parsed.branchId !== null && scope === null) {
+      branchParams.set("branch_id", `eq.${parsed.branchId}`);
+    }
+    if (scope !== null) {
+      branchParams.set(
+        "branch_id",
+        scope.length ? `in.(${scope.join(",")})` : "in.(-1)",
+      );
+      if (parsed.branchId !== null && !scope.includes(parsed.branchId)) return null;
+    } else if (parsed.branchId === null && parsed.regionId === null) {
+      branchParams.set("branch_id", "not.eq.100");
+    }
+
+    let branchIds: number[] | null = null;
+    if (parsed.regionId !== null || parsed.branchId !== null || scope !== null) {
+      const branchResponse = await supabaseRestFetch(
+        `t_branch?${branchParams.toString()}`,
+        { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+      );
+      if (!branchResponse.ok) {
+        throw new Error(`Latest transaction branch request failed: ${await branchResponse.text()}`);
+      }
+      const branchRows = (await branchResponse.json()) as Array<{ branch_id?: number }>;
+      branchIds = branchRows
+        .map((row) => Number(row.branch_id))
+        .filter((value) => Number.isSafeInteger(value) && value !== 100)
+        .filter((value) => parsed.branchId === null || value === parsed.branchId);
+      if (!branchIds.length) return null;
+    }
+
+    const transactionParams = new URLSearchParams({
+      select: "payment_date",
+      order: "payment_date.desc,id.desc",
+      limit: "1",
+    });
+    if (branchIds !== null) {
+      transactionParams.set("branch_id", `in.(${branchIds.join(",")})`);
+    } else {
+      transactionParams.set("branch_id", "not.eq.100");
+    }
+    if (parsed.month) {
+      const month = parsed.month.trim();
+      transactionParams.set(
+        "month",
+        /^\w{3} \d{4}$/.test(month) ? `eq.${month}` : `ilike.${month}%`,
+      );
+    }
+    const transactionResponse = await supabaseRestFetch(
+      `t_revenue_txn?${transactionParams.toString()}`,
+      { next: { revalidate: 30, tags: ["revenue-dashboard"] } },
+    );
+    if (!transactionResponse.ok) {
+      throw new Error(`Latest transaction date request failed: ${await transactionResponse.text()}`);
+    }
+    const rows = (await transactionResponse.json()) as Array<{ payment_date?: string | null }>;
+    return rows[0]?.payment_date ?? null;
+  },
+);
+
+export function getLatestTransactionDate(
+  branchScope: DashboardBranchScope = null,
+  filters: LatestTransactionFilters = {},
+) {
+  return getLatestTransactionDateCached(latestTransactionFiltersKey(branchScope, filters));
+}

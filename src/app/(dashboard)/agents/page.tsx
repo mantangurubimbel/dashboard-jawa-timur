@@ -1,9 +1,10 @@
 import { UsersRound } from "lucide-react";
 import { AgentFilters } from "@/components/agent-filters";
 import { AgentPerformanceTable } from "@/components/agent-performance-table";
+import { LatestTransactionDate } from "@/components/latest-transaction-date";
 import { getAgentAnalytics, getAgentProductRevenue } from "@/lib/analytics-data";
 import { formatNumber } from "@/lib/format";
-import { getLatestRevenuePeriodContext } from "@/lib/revenue-filters";
+import { getLatestRevenuePeriodContext, getLatestTransactionDate } from "@/lib/revenue-filters";
 import { supabaseRestFetch } from "@/lib/supabase-server";
 import { getDashboardBranchScope } from "@/lib/dashboard-access";
 
@@ -84,9 +85,14 @@ export default async function AgentsPage({
     branchId: numericValue("branchId"),
     month: month || undefined,
   };
-  const [rows, productRevenue] = await Promise.all([
+  const [rows, productRevenue, latestTransactionDate] = await Promise.all([
     getAgentAnalytics(analyticsFilters, branchScope),
     getAgentProductRevenue(analyticsFilters, branchScope),
+    getLatestTransactionDate(branchScope, {
+      regionId: numericValue("regionId"),
+      branchId: numericValue("branchId"),
+      month: month || undefined,
+    }),
   ]);
   return (
     <div className="flex w-full flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -112,6 +118,7 @@ export default async function AgentsPage({
           month,
         }}
       />
+      <LatestTransactionDate date={latestTransactionDate} label="Latest transaction date for current selection" />
       <AgentPerformanceTable
         data={rows}
         productRevenue={productRevenue}

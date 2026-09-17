@@ -323,6 +323,13 @@ the Git remote and Vercel project and stops before deployment if either is
 wrong. Do not deploy until the project name is confirmed. Git pushes must
 target `origin main` only after reviewing the diff.
 
+### Deployment command trigger
+
+When the user says `deploy`, execute `npm run deploy:prod` from this
+repository. That command verifies the expected Git remote and Vercel project,
+runs lint and the production build, and deploys to Vercel. Do not commit or
+push to GitHub unless the user explicitly requests commit or push.
+
 ## 13. CSV / import rules
 
 CSV-related functionality is sensitive because transaction imports can affect downstream analytics.
