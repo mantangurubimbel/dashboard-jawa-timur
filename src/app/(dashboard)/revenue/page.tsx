@@ -164,6 +164,7 @@ export async function RevenuePageContent({
           }}
         />
       </>
+      <LatestTransactionDate date={latestTransactionDate} label="Latest transaction date for current selection" />
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <MetricCard label="Actual Revenue" value={formatCurrency(kpis.totalRevenue)} detail={`${formatNumber(kpis.totalTransactions)} transactions`} icon={Banknote} />
         <MetricCard label={targetLabel} value={formatCurrency(selectedMonthTarget)} detail={selectedMonth ? `Monthly target ${selectedMonth}` : "Total branch target"} icon={Banknote} />
@@ -205,7 +206,6 @@ export async function RevenuePageContent({
         targetAnnualRevenue={kpis.targetAnnualRevenue}
         targetRevenueOverride={selectedMonth ? selectedMonthTarget : undefined}
       />
-      <LatestTransactionDate date={latestTransactionDate} label="Latest transaction date for current selection" />
     </div>
   );
 }

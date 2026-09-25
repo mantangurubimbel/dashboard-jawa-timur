@@ -20,6 +20,7 @@ export default async function StudentsPage({
     return Array.isArray(raw) ? raw[0] ?? "" : raw ?? "";
   };
   const data = await getStudentOverviewData({
+    regionId: value("regionId") ? Number(value("regionId")) : undefined,
     branchId: value("branchId") ? Number(value("branchId")) : undefined,
     fromDate: value("fromDate") || undefined,
     toDate: value("toDate") || undefined,
@@ -42,7 +43,9 @@ export default async function StudentsPage({
       </header>
       <StudentFilters
         options={data.filters}
+        showRegionFilter
         values={{
+          regionId: value("regionId"),
           branchId: value("branchId"),
           fromDate: value("fromDate"),
           toDate: value("toDate"),

@@ -4,31 +4,44 @@ import { Filter, RotateCcw } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useState, useTransition } from "react";
 
-type Branch = { id: string; label: string };
+type Region = { id: string; label: string };
+type Branch = { id: string; label: string; regionId: string };
 
 export function StudentFilters({
   options,
   values,
   showDateFilters = true,
+  showRegionFilter = false,
 }: {
   options: {
+    regions?: Region[];
     branches: Branch[];
   };
   values: {
+    regionId?: string;
     branchId: string;
     fromDate: string;
     toDate: string;
   };
   showDateFilters?: boolean;
+  showRegionFilter?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [pending, startTransition] = useTransition();
-  const [draft, setDraft] = useState(values);
+  const [draft, setDraft] = useState({ regionId: values.regionId ?? "", branchId: values.branchId, fromDate: values.fromDate, toDate: values.toDate });
 
   function update(key: keyof typeof draft, value: string) {
     const next = { ...draft, [key]: value };
+    if (key === "regionId" && value && next.branchId) {
+      const branch = options.branches.find((item) => item.id === next.branchId);
+      if (branch && branch.regionId !== value) next.branchId = "";
+    }
+    if (key === "branchId" && value) {
+      const branch = options.branches.find((item) => item.id === value);
+      if (branch) next.regionId = branch.regionId;
+    }
     setDraft(next);
     const params = new URLSearchParams(searchParams.toString());
     params.delete("academicYear");
@@ -41,6 +54,7 @@ export function StudentFilters({
 
   function reset() {
     setDraft({
+      regionId: "",
       branchId: "",
       fromDate: "",
       toDate: "",
@@ -56,9 +70,15 @@ export function StudentFilters({
           <span className="text-sm font-semibold text-slate-950">Student Filters</span>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {showRegionFilter ? (
+            <select value={draft.regionId} onChange={(event) => update("regionId", event.target.value)} aria-label="Region" className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800">
+              <option value="">All regions</option>
+              {(options.regions ?? []).map((region) => <option key={region.id} value={region.id}>{region.label}</option>)}
+            </select>
+          ) : null}
           <select value={draft.branchId} onChange={(event) => update("branchId", event.target.value)} aria-label="Branch" className="h-8 w-40 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800">
             <option value="">All branches</option>
-            {options.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
+            {options.branches.filter((branch) => !draft.regionId || branch.regionId === draft.regionId).map((branch) => <option key={branch.id} value={branch.id}>{branch.label}</option>)}
           </select>
           {showDateFilters ? <><label className="flex items-center gap-1.5"><span className="text-xs text-slate-500">From date</span><input type="date" value={draft.fromDate} onChange={(event) => update("fromDate", event.target.value)} className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800" /></label><label className="flex items-center gap-1.5"><span className="text-xs text-slate-500">To date</span><input type="date" value={draft.toDate} onChange={(event) => update("toDate", event.target.value)} className="h-8 w-32 rounded-md border border-slate-300 bg-white px-2 text-xs text-slate-800" /></label></> : null}
           <button

@@ -207,7 +207,7 @@ export function AppShell({
           collapsed ? "w-20" : "w-64"
         }`}
       >
-        <div className="flex h-16 items-center border-b border-slate-200 px-4">
+        <div className="flex h-[68px] shrink-0 items-center border-b border-slate-200 px-4">
           <Link href="/executive-summary" className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-teal-700 text-sm font-bold text-white">
               JT
@@ -247,7 +247,7 @@ export function AppShell({
             className="fixed inset-y-0 left-0 z-50 flex w-72 max-w-[calc(100vw-3rem)] flex-col border-r border-slate-200 bg-white shadow-xl lg:hidden"
             aria-label="Mobile navigation"
           >
-            <div className="flex h-16 items-center justify-between border-b border-slate-200 px-4">
+            <div className="flex h-[68px] shrink-0 items-center justify-between border-b border-slate-200 px-4">
               <Link
                 href="/revenue"
                 onClick={() => setMobileMenuOpen(false)}
@@ -277,7 +277,7 @@ export function AppShell({
       ) : null}
 
       <div className={`transition-all ${collapsed ? "lg:pl-20" : "lg:pl-64"}`}>
-        <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-[68px] shrink-0 items-center justify-between border-b border-slate-200 bg-white/95 px-4 backdrop-blur sm:px-6 lg:px-8">
           <div className="flex items-center gap-2 lg:hidden">
             <button
               type="button"

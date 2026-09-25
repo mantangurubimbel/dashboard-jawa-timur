@@ -27,6 +27,7 @@ type BranchRow = {
   branch_name: string;
   region_id: number | null;
 };
+type RegionRow = { region_id: number; region_name: string };
 
 type GradeRow = {
   grade_id: number;
@@ -41,6 +42,7 @@ type AcademicYearRow = {
 
 export type StudentFilterOptions = {
   academicYears: string[];
+  regions: { id: string; label: string }[];
   branches: { id: string; label: string; regionId: string }[];
 };
 
@@ -277,6 +279,7 @@ function weekLabel(fromDate: string, toDate: string) {
 
 export async function getStudentOverviewData(filters: {
   academicYear?: string;
+  regionId?: number;
   branchId?: number;
   fromDate?: string;
   toDate?: string;
@@ -296,7 +299,7 @@ export async function getStudentOverviewData(filters: {
     : scope.length
       ? { branch_id: `in.(${scope.join(",")})` }
       : { branch_id: "in.(-1)" };
-  const [rawStudents, branches, grades, schoolRows, academicYearRows] = await Promise.all([
+  const [rawStudents, branches, regions, grades, schoolRows, academicYearRows] = await Promise.all([
     fetchAll<StudentRow>(
       "t_students",
       "nis,payment_date,academic_year,user_serial,user_name,user_phone,birth_date,email,grade_id,npsn,rombel_id,agent_id,status,branch_id",
@@ -305,6 +308,7 @@ export async function getStudentOverviewData(filters: {
       branchQuery,
     ),
     fetchAll<BranchRow>("t_branch", "branch_id,branch_name,region_id", undefined, cacheInit, branchQuery),
+    fetchAll<RegionRow>("t_region", "region_id,region_name", "region_name", cacheInit),
     fetchAll<GradeRow>("t_grade", "grade_id,grade,level", undefined, cacheInit),
     fetchAll<{ npsn: string; name: string; level: string | null }>(
       "t_master_school",
@@ -345,6 +349,7 @@ export async function getStudentOverviewData(filters: {
     const grade = row.grade_id === null ? null : gradeById.get(row.grade_id);
     return (
       row.academic_year === currentAcademicYear &&
+      (scopedFilters.regionId === undefined || branchById.get(row.branch_id)?.region_id === scopedFilters.regionId) &&
       (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
       (!scopedFilters.fromDate || row.payment_date >= scopedFilters.fromDate) &&
       (!scopedFilters.toDate || row.payment_date <= scopedFilters.toDate) &&
@@ -424,8 +429,12 @@ export async function getStudentOverviewData(filters: {
   const lyAcademicYear = previousAcademicYear(currentAcademicYear, 1);
   const l2yAcademicYear = previousAcademicYear(currentAcademicYear, 2);
   const currentRows = filtered;
+  const matchesBranchFilters = (row: StudentRow) => (
+    (scopedFilters.regionId === undefined || branchById.get(row.branch_id)?.region_id === scopedFilters.regionId) &&
+    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId)
+  );
   const comparisonFilter = (row: StudentRow) => (
-    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+    matchesBranchFilters(row) &&
     (!scopedFilters.status || row.status === scopedFilters.status) &&
     (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
   );
@@ -494,7 +503,7 @@ export async function getStudentOverviewData(filters: {
               ? ["3 SD", "4 SD", "5 SD", "6 SD"]
               : [];
       const historyRows = students.filter((row) =>
-        row.npsn === npsn && (!scopedFilters.branchId || row.branch_id === scopedFilters.branchId),
+        row.npsn === npsn && matchesBranchFilters(row),
       );
       const history = Array.from(new Set(historyRows.map((row) => row.academic_year)))
         .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
@@ -503,7 +512,7 @@ export async function getStudentOverviewData(filters: {
           const nises = new Set<string>();
           for (const row of studentsByNpsn.get(npsn) ?? []) {
             if (row.academic_year !== academicYear) continue;
-            if (scopedFilters.branchId && row.branch_id !== scopedFilters.branchId) continue;
+            if (!matchesBranchFilters(row)) continue;
             const grade = row.grade_id === null ? null : gradeById.get(row.grade_id)?.grade;
             const gradeLabel = grade === "12 SMA" || grade === "Gapyear" ? "12 SMA" : grade;
             if (gradeLabel && gradeLabels.includes(gradeLabel)) {
@@ -582,7 +591,7 @@ export async function getStudentOverviewData(filters: {
   for (const row of students) {
     const yearIndex = comparisonYears.indexOf(row.academic_year);
     if (yearIndex === -1) continue;
-    if (scopedFilters.branchId !== undefined && row.branch_id !== scopedFilters.branchId) continue;
+    if (!matchesBranchFilters(row)) continue;
     if (scopedFilters.fromDate && row.payment_date < (yearIndex === 0 ? scopedFilters.fromDate : shiftYear(scopedFilters.fromDate, yearIndex))) continue;
     if (scopedFilters.toDate && row.payment_date > (yearIndex === 0 ? scopedFilters.toDate : shiftYear(scopedFilters.toDate, yearIndex))) continue;
     if (!row.npsn) continue;
@@ -645,6 +654,7 @@ export async function getStudentOverviewData(filters: {
   const weeklyBranchMap = new Map<number, number[]>(
     branches
       .filter((branch) => scopedFilters.branchId === undefined || branch.branch_id === scopedFilters.branchId)
+      .filter((branch) => scopedFilters.regionId === undefined || branch.region_id === scopedFilters.regionId)
       .map((branch) => [branch.branch_id, Array(weeklyWeeks.length).fill(0)]),
   );
   for (const row of currentRows) {
@@ -669,7 +679,7 @@ export async function getStudentOverviewData(filters: {
       .sort((a, b) => a.branch.localeCompare(b.branch)),
   };
   const comparisonBase = students.filter((row) => (
-    (scopedFilters.branchId === undefined || row.branch_id === scopedFilters.branchId) &&
+    matchesBranchFilters(row) &&
     (!scopedFilters.status || row.status === scopedFilters.status) &&
     (!scopedFilters.level || gradeById.get(row.grade_id ?? -1)?.level === scopedFilters.level)
   ));
@@ -747,6 +757,9 @@ export async function getStudentOverviewData(filters: {
   return {
     filters: {
       academicYears,
+      regions: regions
+        .map((row) => ({ id: String(row.region_id), label: row.region_name }))
+        .filter((region) => branches.some((branch) => String(branch.region_id) === region.id)),
       branches: branches
         .filter((row) => row.region_id !== null)
         .sort((a, b) => a.branch_name.localeCompare(b.branch_name))
